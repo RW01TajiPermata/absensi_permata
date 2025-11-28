@@ -1,157 +1,79 @@
-body {
-    background-color: #f8f9fa;
+/* Tambahkan di akhir file CSS */
+
+/* Button styles dengan icon */
+.btn i {
+    margin-right: 5px;
 }
 
-.card {
-    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-    border: 1px solid rgba(0, 0, 0, 0.125);
+.btn-sm i {
+    margin-right: 3px;
 }
 
-.card-header {
-    background-color: #f8f9fa;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+/* Hover effects untuk tombol */
+.btn:hover {
+    transform: translateY(-1px);
+    transition: transform 0.2s ease;
 }
 
-.navbar-brand {
-    font-weight: bold;
+/* Modal styles */
+.modal-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.modal-header .btn-close {
+    filter: invert(1);
+}
+
+/* Badge styles */
+.badge {
+    font-size: 0.75em;
+    padding: 0.4em 0.6em;
+}
+
+/* Table styles */
+.table-hover tbody tr:hover {
+    background-color: rgba(0, 123, 255, 0.1);
 }
 
 .table th {
     border-top: none;
     font-weight: 600;
+    background-color: #f8f9fa;
 }
 
-.alert {
-    border: none;
-    border-radius: 0.5rem;
+/* Card header gradients */
+.card-header.bg-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
 }
 
-.btn {
-    border-radius: 0.375rem;
+.card-header.bg-success {
+    background: linear-gradient(135deg, #4ecdc4 0%, #44a08d 100%) !important;
 }
 
-.form-control {
-    border-radius: 0.375rem;
+/* Loading states */
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
-.card {
-    border-radius: 0.5rem;
-}
-
-/* Custom styles for QR code display */
-.qr-code-container {
-    background: white;
-    padding: 20px;
-    border-radius: 10px;
-    display: inline-block;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
-/* Camera styles */
-.camera-container {
-    position: relative;
-}
-
-#camera-preview {
-    background: #000;
-    border-radius: 8px;
-    overflow: hidden;
-}
-
-#camera-placeholder {
-    color: #6c757d;
-}
-
-#video {
-    border-radius: 8px;
-}
-
-.camera-controls {
-    display: flex;
-    gap: 10px;
-    justify-content: center;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
-/* Tab styles */
-.nav-tabs .nav-link {
-    border: none;
-    color: #6c757d;
-    font-weight: 500;
-}
-
-.nav-tabs .nav-link.active {
-    color: #0d6efd;
-    border-bottom: 2px solid #0d6efd;
-    background: transparent;
-}
-
-/* Responsive adjustments */
+/* Responsive table */
 @media (max-width: 768px) {
-    .container {
-        padding: 0 15px;
-    }
-    
-    .card-body {
-        padding: 1rem;
-    }
-    
-    .btn-group {
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
+    .table-responsive {
+        font-size: 0.875rem;
     }
     
     .btn-group .btn {
-        margin: 0;
-    }
-    
-    .camera-controls {
-        flex-direction: column;
+        margin-bottom: 2px;
     }
 }
 
-/* Animation for alerts */
-.alert {
-    animation: slideIn 0.3s ease-out;
+/* Animation for modals */
+.modal.fade .modal-dialog {
+    transform: translate(0, -50px);
+    transition: transform 0.3s ease-out;
 }
 
-@keyframes slideIn {
-    from {
-        transform: translateY(-10px);
-        opacity: 0;
-    }
-    to {
-        transform: translateY(0);
-        opacity: 1;
-    }
-}
-
-/* Custom badge styles */
-.badge {
-    font-size: 0.75em;
-}
-
-/* Event card hover effects */
-.card:hover {
-    transform: translateY(-2px);
-    transition: transform 0.2s ease;
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-}
-
-/* Loading animation */
-.loading-spinner {
-    display: inline-block;
-    width: 20px;
-    height: 20px;
-    border: 3px solid #f3f3f3;
-    border-top: 3px solid #3498db;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+.modal.show .modal-dialog {
+    transform: translate(0, 0);
 }

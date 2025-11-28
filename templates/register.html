@@ -25,6 +25,30 @@
                     </div>
                     
                     <div class="mb-3">
+                        <label for="nomor_telepon" class="form-label">
+                            <i class="fas fa-phone"></i> Nomor Telepon
+                        </label>
+                        <input type="tel" class="form-control" id="nomor_telepon" name="nomor_telepon" 
+                               placeholder="Contoh: 081234567890" 
+                               value="{{ request.form.nomor_telepon if request.form.nomor_telepon }}">
+                        <div class="form-text">
+                            <i class="fas fa-info-circle"></i> Contoh: 081234567890 (10-15 digit, wajib dimulai dengan 0)
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="rt" class="form-label">
+                            <i class="fas fa-home"></i> RT
+                        </label>
+                        <input type="text" class="form-control" id="rt" name="rt" 
+                               placeholder="Contoh: 001" 
+                               value="{{ request.form.rt if request.form.rt }}">
+                        <div class="form-text">
+                            <i class="fas fa-info-circle"></i> Masukkan RT tempat tinggal (contoh: 001, 002, dst)
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
                         <label for="password" class="form-label">
                             <i class="fas fa-lock"></i> Password
                         </label>
@@ -90,6 +114,8 @@
 // Client-side validation untuk user experience yang lebih baik
 document.addEventListener('DOMContentLoaded', function() {
     const usernameInput = document.getElementById('username');
+    const nomorTeleponInput = document.getElementById('nomor_telepon');
+    const rtInput = document.getElementById('rt');
     const passwordInput = document.getElementById('password');
     const confirmPasswordInput = document.getElementById('confirm_password');
     const form = document.querySelector('form');
@@ -105,6 +131,32 @@ document.addEventListener('DOMContentLoaded', function() {
         const validChars = /^[a-zA-Z0-9\s\.\-_@]+$/;
         if (!validChars.test(username)) {
             return 'Username mengandung karakter yang tidak diizinkan';
+        }
+        return null;
+    }
+    
+    function validateNomorTelepon(nomorTelepon) {
+        if (nomorTelepon) {
+            const cleanNumber = nomorTelepon.replace(/\D/g, '');
+            if (cleanNumber.length < 10 || cleanNumber.length > 15) {
+                return 'Nomor telepon harus 10-15 digit';
+            }
+            if (!cleanNumber.startsWith('0')) {
+                return 'Nomor telepon harus dimulai dengan angka 0';
+            }
+        }
+        return null;
+    }
+    
+    function validateRT(rt) {
+        if (rt) {
+            if (!/^\d{1,3}$/.test(rt)) {
+                return 'RT harus berupa angka 1-3 digit';
+            }
+            const rtNumber = parseInt(rt);
+            if (rtNumber < 1 || rtNumber > 999) {
+                return 'RT harus antara 001-999';
+            }
         }
         return null;
     }
@@ -129,6 +181,42 @@ document.addEventListener('DOMContentLoaded', function() {
         if (error) {
             this.classList.add('is-invalid');
             // Tampilkan pesan error
+            let feedback = this.nextElementSibling;
+            if (!feedback || !feedback.classList.contains('invalid-feedback')) {
+                feedback = document.createElement('div');
+                feedback.className = 'invalid-feedback';
+                this.parentNode.appendChild(feedback);
+            }
+            feedback.textContent = error;
+            feedback.style.display = 'block';
+        } else {
+            this.classList.remove('is-invalid');
+            this.classList.add('is-valid');
+        }
+    });
+    
+    nomorTeleponInput.addEventListener('blur', function() {
+        const error = validateNomorTelepon(this.value);
+        if (error) {
+            this.classList.add('is-invalid');
+            let feedback = this.nextElementSibling;
+            if (!feedback || !feedback.classList.contains('invalid-feedback')) {
+                feedback = document.createElement('div');
+                feedback.className = 'invalid-feedback';
+                this.parentNode.appendChild(feedback);
+            }
+            feedback.textContent = error;
+            feedback.style.display = 'block';
+        } else {
+            this.classList.remove('is-invalid');
+            this.classList.add('is-valid');
+        }
+    });
+    
+    rtInput.addEventListener('blur', function() {
+        const error = validateRT(this.value);
+        if (error) {
+            this.classList.add('is-invalid');
             let feedback = this.nextElementSibling;
             if (!feedback || !feedback.classList.contains('invalid-feedback')) {
                 feedback = document.createElement('div');
@@ -168,6 +256,14 @@ document.addEventListener('DOMContentLoaded', function() {
         this.classList.remove('is-invalid', 'is-valid');
     });
     
+    nomorTeleponInput.addEventListener('input', function() {
+        this.classList.remove('is-invalid', 'is-valid');
+    });
+    
+    rtInput.addEventListener('input', function() {
+        this.classList.remove('is-invalid', 'is-valid');
+    });
+    
     passwordInput.addEventListener('input', function() {
         this.classList.remove('is-invalid', 'is-valid');
         confirmPasswordInput.classList.remove('is-invalid', 'is-valid');
@@ -175,6 +271,24 @@ document.addEventListener('DOMContentLoaded', function() {
     
     confirmPasswordInput.addEventListener('input', function() {
         this.classList.remove('is-invalid', 'is-valid');
+    });
+    
+    // Format nomor telepon
+    nomorTeleponInput.addEventListener('input', function() {
+        let value = this.value.replace(/\D/g, '');
+        if (value.length > 0 && !value.startsWith('0')) {
+            value = '0' + value;
+        }
+        this.value = value;
+    });
+    
+    // Format RT
+    rtInput.addEventListener('input', function() {
+        let value = this.value.replace(/\D/g, '');
+        if (value.length > 3) {
+            value = value.substring(0, 3);
+        }
+        this.value = value;
     });
 });
 </script>

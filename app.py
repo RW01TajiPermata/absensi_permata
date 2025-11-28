@@ -20,12 +20,11 @@ app.secret_key = 'absensi-permata-secret-key-2024'
 def get_db_connection():
     try:
         conn = mysql.connector.connect(
-            host='4ak18v.h.filess.io',
-            user='absensi_permata_downdoesno',
-            password='48b6583e7f16bf8fb3115bf98bcc90d4d130f090',
-            database='absensi_permata_downdoesno',
-            auth_plugin='mysql_native_password',
-            port='61002'
+            host='localhost',
+            user='root',
+            password='',
+            database='absensi_permata',
+            auth_plugin='mysql_native_password'
         )
         return conn
     except mysql.connector.Error as err:
@@ -77,8 +76,8 @@ def ensure_admin_exists():
             # Buat admin baru
             hashed_password = generate_password_hash('admin123')
             cursor.execute(
-                "INSERT INTO users (username, password, nama_lengkap, role) VALUES (%s, %s, %s, 'admin')",
-                ('admin', hashed_password, 'Administrator Permata')
+                "INSERT INTO users (username, password, nama_lengkap, nomor_telepon, rt, role) VALUES (%s, %s, %s, %s, %s, 'admin')",
+                ('admin', hashed_password, 'Administrator Permata', '081234567890', '001')
             )
             conn.commit()
             print("✅ Admin user created with password 'admin123'")
@@ -132,6 +131,8 @@ def login():
                 session['user_id'] = user['id']
                 session['username'] = user['username']
                 session['nama_lengkap'] = user['nama_lengkap']
+                session['nomor_telepon'] = user['nomor_telepon']
+                session['rt'] = user['rt']
                 session['role'] = user['role']
                 
                 cursor.close()
@@ -154,6 +155,8 @@ def login():
             session['user_id'] = user['id']
             session['username'] = user['username']
             session['nama_lengkap'] = user['nama_lengkap']
+            session['nomor_telepon'] = user['nomor_telepon']
+            session['rt'] = user['rt']
             session['role'] = user['role']
             
             flash(f'Login berhasil! Selamat datang {user["nama_lengkap"]}', 'success')
@@ -173,6 +176,8 @@ def register():
         username = request.form['username']
         password = request.form['password']
         confirm_password = request.form['confirm_password']
+        nomor_telepon = request.form['nomor_telepon']
+        rt = request.form['rt']
         
         if not username or not password:
             flash('Username dan password harus diisi!', 'error')
@@ -200,6 +205,30 @@ def register():
             flash('Username mengandung karakter yang tidak diizinkan! Hanya boleh huruf, angka, spasi, titik, dash, underscore, dan @.', 'error')
             return render_template('register.html')
         
+        # Validasi nomor telepon
+        if nomor_telepon:
+            # Hapus karakter non-digit
+            nomor_telepon_clean = re.sub(r'\D', '', nomor_telepon)
+            if len(nomor_telepon_clean) < 10 or len(nomor_telepon_clean) > 15:
+                flash('Nomor telepon harus antara 10-15 digit!', 'error')
+                return render_template('register.html')
+            if not nomor_telepon_clean.startswith('0'):
+                flash('Nomor telepon harus dimulai dengan angka 0!', 'error')
+                return render_template('register.html')
+            # Simpan nomor telepon yang sudah dibersihkan
+            nomor_telepon = nomor_telepon_clean
+        
+        # Validasi RT
+        if rt:
+            if not re.match(r'^\d{1,3}$', rt):
+                flash('RT harus berupa angka 1-3 digit!', 'error')
+                return render_template('register.html')
+            if int(rt) < 1 or int(rt) > 999:
+                flash('RT harus antara 001-999!', 'error')
+                return render_template('register.html')
+            # Format RT menjadi 3 digit
+            rt = rt.zfill(3)
+        
         conn = get_db_connection()
         if not conn:
             flash('Koneksi database gagal!', 'error')
@@ -222,8 +251,8 @@ def register():
         
         try:
             cursor.execute(
-                "INSERT INTO users (username, password, nama_lengkap, role) VALUES (%s, %s, %s, 'user')",
-                (username, hashed_password, nama_lengkap)
+                "INSERT INTO users (username, password, nama_lengkap, nomor_telepon, rt, role) VALUES (%s, %s, %s, %s, %s, 'user')",
+                (username, hashed_password, nama_lengkap, nomor_telepon if nomor_telepon else None, rt if rt else None)
             )
             conn.commit()
             
@@ -650,12 +679,12 @@ def absen_manual(event_id):
         return redirect(url_for('admin_events'))
     
     # Get semua users untuk dropdown
-    cursor.execute("SELECT id, username, nama_lengkap FROM users WHERE role = 'user' ORDER BY nama_lengkap")
+    cursor.execute("SELECT id, username, nama_lengkap, nomor_telepon, rt FROM users WHERE role = 'user' ORDER BY nama_lengkap")
     users = cursor.fetchall()
     
     # Get absensi yang sudah dilakukan
     cursor.execute("""
-        SELECT u.id, u.nama_lengkap, u.username 
+        SELECT u.id, u.nama_lengkap, u.username, u.nomor_telepon, u.rt
         FROM absensi a 
         JOIN users u ON a.user_id = u.id 
         WHERE a.event_id = %s
@@ -681,7 +710,7 @@ def absen_manual(event_id):
                 
                 # Refresh list yang sudah absen
                 cursor.execute("""
-                    SELECT u.id, u.nama_lengkap, u.username 
+                    SELECT u.id, u.nama_lengkap, u.username, u.nomor_telepon, u.rt
                     FROM absensi a 
                     JOIN users u ON a.user_id = u.id 
                     WHERE a.event_id = %s
@@ -725,7 +754,7 @@ def hasil_absen(event_id):
     
     # Get data absensi dengan metode
     cursor.execute("""
-        SELECT a.id, u.nama_lengkap, u.username, a.waktu_absen, a.metode_absen
+        SELECT a.id, u.nama_lengkap, u.username, u.nomor_telepon, u.rt, a.waktu_absen, a.metode_absen
         FROM absensi a 
         JOIN users u ON a.user_id = u.id 
         WHERE a.event_id = %s 
@@ -763,7 +792,7 @@ def download_absen(event_id):
     
     # Get data absensi dengan metode
     cursor.execute("""
-        SELECT u.nama_lengkap, u.username, a.waktu_absen, a.metode_absen
+        SELECT u.nama_lengkap, u.username, u.nomor_telepon, u.rt, a.waktu_absen, a.metode_absen
         FROM absensi a 
         JOIN users u ON a.user_id = u.id 
         WHERE a.event_id = %s 
@@ -789,7 +818,7 @@ def download_absen(event_id):
     writer.writerow([])
     
     # Header tabel
-    writer.writerow(['No', 'Nama Lengkap', 'Username', 'Waktu Absen', 'Metode Absen'])
+    writer.writerow(['No', 'Nama Lengkap', 'Username', 'Nomor Telepon', 'RT', 'Waktu Absen', 'Metode Absen'])
     
     # Data absensi
     for i, absen in enumerate(absensi, 1):
@@ -797,6 +826,8 @@ def download_absen(event_id):
             i,
             absen['nama_lengkap'],
             absen['username'],
+            absen['nomor_telepon'] or '-',
+            absen['rt'] or '-',
             absen['waktu_absen'].strftime('%d-%m-%Y %H:%M:%S'),
             absen['metode_absen'].upper()
         ])
@@ -1006,5 +1037,3 @@ if __name__ == '__main__':
     # Pastikan admin exists saat aplikasi start
     ensure_admin_exists()
     qr_manager.start()
-    app.run(debug=True, host='0.0.0.0', port=5000)
-

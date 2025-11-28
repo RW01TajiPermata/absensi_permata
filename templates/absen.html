@@ -16,9 +16,15 @@
                 
                 {% if is_admin %}
                 <div class="mb-4">
-                    <p class="text-info">QR Code akan berubah otomatis setiap 30 detik</p>
+                    <p class="text-info">QR Code akan berubah otomatis setiap 2 menit</p>
                     {% if qr_code %}
                     <img src="data:image/png;base64,{{ qr_code }}" alt="QR Code" class="img-fluid mb-3" style="max-width: 300px;">
+                    {% endif %}
+                    {% if seconds_remaining is defined %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-clock"></i> QR Code berlaku selama: 
+                        <strong id="countdown">{{ seconds_remaining }}</strong> detik
+                    </div>
                     {% endif %}
                 </div>
                 
@@ -129,10 +135,26 @@
 {% block scripts %}
 {% if is_admin and refresh_interval %}
 <script>
-    // Auto refresh QR code untuk admin
+    // Auto refresh QR code untuk admin (2 menit)
     setTimeout(function() {
         window.location.reload();
     }, {{ refresh_interval }});
+    
+    // Countdown timer untuk admin
+    {% if seconds_remaining is defined %}
+    let timeLeft = {{ seconds_remaining }};
+    const countdownElement = document.getElementById('countdown');
+    
+    const countdown = setInterval(function() {
+        timeLeft--;
+        countdownElement.textContent = timeLeft;
+        
+        if (timeLeft <= 0) {
+            clearInterval(countdown);
+            window.location.reload();
+        }
+    }, 1000);
+    {% endif %}
 </script>
 {% else %}
 <script>

@@ -20,11 +20,12 @@ app.secret_key = 'absensi-permata-secret-key-2024'
 def get_db_connection():
     try:
         conn = mysql.connector.connect(
-            host='localhost',
-            user='root',
-            password='',
-            database='absensi_permata',
-            auth_plugin='mysql_native_password'
+            host='4ak18v.h.filess.io',
+            user='absensi_permata_downdoesno',
+            password='48b6583e7f16bf8fb3115bf98bcc90d4d130f090',
+            database='absensi_permata_downdoesno',
+            auth_plugin='mysql_native_password',
+            port='61002'
         )
         return conn
     except mysql.connector.Error as err:
@@ -1006,3 +1007,4 @@ if __name__ == '__main__':
     ensure_admin_exists()
     qr_manager.start()
     app.run(debug=True, host='0.0.0.0', port=5000)
+

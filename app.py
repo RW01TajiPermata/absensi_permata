@@ -326,6 +326,123 @@ def buat_event():
     
     return render_template('buat_event.html')
 
+@app.route('/admin/hapus-event/<int:event_id>', methods=['POST'])
+def hapus_event(event_id):
+    if 'user_id' not in session or session['role'] != 'admin':
+        return redirect(url_for('login'))
+    
+    conn = get_db_connection()
+    if not conn:
+        flash('Koneksi database gagal!', 'error')
+        return redirect(url_for('admin_events'))
+        
+    cursor = conn.cursor()
+    
+    try:
+        # Hapus event (akan otomatis hapus absensi terkait karena foreign key constraint)
+        cursor.execute("DELETE FROM events WHERE id = %s AND created_by = %s", (event_id, session['user_id']))
+        
+        if cursor.rowcount > 0:
+            conn.commit()
+            flash('Event berhasil dihapus!', 'success')
+        else:
+            flash('Event tidak ditemukan atau tidak memiliki akses!', 'error')
+            
+    except Exception as e:
+        flash('Terjadi kesalahan saat menghapus event.', 'error')
+        print(f"Error deleting event: {e}")
+        
+    finally:
+        cursor.close()
+        conn.close()
+    
+    return redirect(url_for('admin_events'))
+
+@app.route('/admin/hapus-absen/<int:absen_id>', methods=['POST'])
+def hapus_absen(absen_id):
+    if 'user_id' not in session or session['role'] != 'admin':
+        return redirect(url_for('login'))
+    
+    conn = get_db_connection()
+    if not conn:
+        flash('Koneksi database gagal!', 'error')
+        return redirect(url_for('admin_events'))
+        
+    cursor = conn.cursor(dictionary=True)
+    
+    try:
+        # Cek apakah absensi ada dan milik event yang dibuat oleh admin
+        cursor.execute("""
+            SELECT a.id, e.created_by 
+            FROM absensi a 
+            JOIN events e ON a.event_id = e.id 
+            WHERE a.id = %s
+        """, (absen_id,))
+        
+        absen = cursor.fetchone()
+        
+        if not absen:
+            flash('Data absensi tidak ditemukan!', 'error')
+        elif absen['created_by'] != session['user_id']:
+            flash('Anda tidak memiliki akses untuk menghapus absensi ini!', 'error')
+        else:
+            # Hapus absensi
+            cursor.execute("DELETE FROM absensi WHERE id = %s", (absen_id,))
+            conn.commit()
+            flash('Data absensi berhasil dihapus!', 'success')
+            
+    except Exception as e:
+        flash('Terjadi kesalahan saat menghapus absensi.', 'error')
+        print(f"Error deleting absensi: {e}")
+        
+    finally:
+        cursor.close()
+        conn.close()
+    
+    # Redirect kembali ke halaman hasil absen
+    event_id = request.form.get('event_id')
+    if event_id:
+        return redirect(url_for('hasil_absen', event_id=event_id))
+    else:
+        return redirect(url_for('admin_events'))
+
+@app.route('/admin/hapus-semua-absen/<int:event_id>', methods=['POST'])
+def hapus_semua_absen(event_id):
+    if 'user_id' not in session or session['role'] != 'admin':
+        return redirect(url_for('login'))
+    
+    conn = get_db_connection()
+    if not conn:
+        flash('Koneksi database gagal!', 'error')
+        return redirect(url_for('admin_events'))
+        
+    cursor = conn.cursor()
+    
+    try:
+        # Cek apakah event milik admin
+        cursor.execute("SELECT created_by FROM events WHERE id = %s", (event_id,))
+        event = cursor.fetchone()
+        
+        if not event:
+            flash('Event tidak ditemukan!', 'error')
+        elif event[0] != session['user_id']:
+            flash('Anda tidak memiliki akses untuk menghapus absensi event ini!', 'error')
+        else:
+            # Hapus semua absensi untuk event ini
+            cursor.execute("DELETE FROM absensi WHERE event_id = %s", (event_id,))
+            conn.commit()
+            flash('Semua data absensi untuk event ini berhasil dihapus!', 'success')
+            
+    except Exception as e:
+        flash('Terjadi kesalahan saat menghapus absensi.', 'error')
+        print(f"Error deleting all absensi: {e}")
+        
+    finally:
+        cursor.close()
+        conn.close()
+    
+    return redirect(url_for('hasil_absen', event_id=event_id))
+
 @app.route('/admin/qr-code/<int:event_id>')
 def generate_qr_code(event_id):
     if 'user_id' not in session or session['role'] != 'admin':
@@ -554,7 +671,7 @@ def hasil_absen(event_id):
     
     # Get data absensi dengan metode
     cursor.execute("""
-        SELECT u.nama_lengkap, u.username, a.waktu_absen, a.metode_absen
+        SELECT a.id, u.nama_lengkap, u.username, a.waktu_absen, a.metode_absen
         FROM absensi a 
         JOIN users u ON a.user_id = u.id 
         WHERE a.event_id = %s 
@@ -834,4 +951,5 @@ def absen(event_id):
 if __name__ == '__main__':
     qr_manager.start()
     app.run(debug=True, host='0.0.0.0', port=5000)
+
 

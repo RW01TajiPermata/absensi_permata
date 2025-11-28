@@ -3,49 +3,60 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>Hasil Absensi - {{ event.nama_event }}</h2>
-    <div>
-        <a href="{{ url_for('download_absen', event_id=event.id) }}" class="btn btn-success">Download CSV</a>
-        <a href="{{ url_for('admin_events') }}" class="btn btn-outline-secondary">Kembali</a>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('download_absen', event_id=event.id) }}" class="btn btn-success">
+            <i class="fas fa-download"></i> Download CSV
+        </a>
+        {% if absensi %}
+        <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteAllAbsenModal">
+            <i class="fas fa-trash"></i> Hapus Semua
+        </button>
+        {% endif %}
+        <a href="{{ url_for('admin_events') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Kembali
+        </a>
     </div>
 </div>
 
 <div class="card">
     <div class="card-header">
-        <h5>Detail Event</h5>
+        <h5><i class="fas fa-info-circle"></i> Detail Event</h5>
     </div>
     <div class="card-body">
         <div class="row">
             <div class="col-md-3">
-                <strong>Tanggal:</strong> {{ event.tanggal_event }}
+                <strong><i class="fas fa-calendar"></i> Tanggal:</strong> {{ event.tanggal_event }}
             </div>
             <div class="col-md-3">
-                <strong>Waktu:</strong> {{ event.waktu_event }}
+                <strong><i class="fas fa-clock"></i> Waktu:</strong> {{ event.waktu_event }}
             </div>
             <div class="col-md-3">
-                <strong>Lokasi:</strong> {{ event.lokasi }}
+                <strong><i class="fas fa-map-marker-alt"></i> Lokasi:</strong> {{ event.lokasi }}
             </div>
             <div class="col-md-3">
-                <strong>Total Absen:</strong> {{ absensi|length }}
+                <strong><i class="fas fa-users"></i> Total Absen:</strong> {{ absensi|length }}
             </div>
         </div>
     </div>
 </div>
 
 <div class="card mt-4">
-    <div class="card-header">
-        <h5>Daftar Hadir</h5>
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fas fa-list"></i> Daftar Hadir</h5>
+        <span class="badge bg-primary">{{ absensi|length }} Orang</span>
     </div>
     <div class="card-body">
         {% if absensi %}
         <div class="table-responsive">
-            <table class="table table-striped">
-                <thead>
+            <table class="table table-striped table-hover">
+                <thead class="table-dark">
                     <tr>
                         <th>No</th>
                         <th>Nama Lengkap</th>
                         <th>Username</th>
                         <th>Waktu Absen</th>
                         <th>Metode</th>
+                        <th>Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -57,23 +68,124 @@
                         <td>{{ absen.waktu_absen.strftime('%d-%m-%Y %H:%M:%S') }}</td>
                         <td>
                             {% if absen.metode_absen == 'qr_code' %}
-                                <span class="badge bg-success">QR Code</span>
+                                <span class="badge bg-success"><i class="fas fa-qrcode"></i> QR Code</span>
                             {% elif absen.metode_absen == 'token' %}
-                                <span class="badge bg-warning">Token</span>
+                                <span class="badge bg-warning"><i class="fas fa-key"></i> Token</span>
                             {% else %}
-                                <span class="badge bg-info">Manual</span>
+                                <span class="badge bg-info"><i class="fas fa-user-edit"></i> Manual</span>
                             {% endif %}
                         </td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-outline-danger" 
+                                    data-bs-toggle="modal" 
+                                    data-bs-target="#deleteAbsenModal{{ absen.id }}">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
                     </tr>
+
+                    <!-- Modal Konfirmasi Hapus Absensi -->
+                    <div class="modal fade" id="deleteAbsenModal{{ absen.id }}" tabindex="-1">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Konfirmasi Hapus Absensi</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <p>Apakah Anda yakin ingin menghapus absensi untuk:</p>
+                                    <div class="alert alert-info">
+                                        <strong>{{ absen.nama_lengkap }}</strong><br>
+                                        <small>{{ absen.username }}</small><br>
+                                        <small>{{ absen.waktu_absen.strftime('%d-%m-%Y %H:%M:%S') }}</small>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                                    <form method="POST" action="{{ url_for('hapus_absen', absen_id=absen.id) }}" style="display: inline;">
+                                        <input type="hidden" name="event_id" value="{{ event.id }}">
+                                        <button type="submit" class="btn btn-danger">
+                                            <i class="fas fa-trash"></i> Ya, Hapus
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
+
+        <!-- Summary Metode Absensi -->
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-chart-pie"></i> Rekap Metode Absensi</h6>
+                    </div>
+                    <div class="card-body">
+                        {% set metode_count = {} %}
+                        {% for absen in absensi %}
+                            {% set metode = absen.metode_absen %}
+                            {% set _ = metode_count.update({metode: metode_count.get(metode, 0) + 1}) %}
+                        {% endfor %}
+                        
+                        {% for metode, count in metode_count.items() %}
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span>
+                                {% if metode == 'qr_code' %}
+                                    <i class="fas fa-qrcode text-success"></i> QR Code
+                                {% elif metode == 'token' %}
+                                    <i class="fas fa-key text-warning"></i> Token
+                                {% else %}
+                                    <i class="fas fa-user-edit text-info"></i> Manual
+                                {% endif %}
+                            </span>
+                            <span class="badge bg-primary">{{ count }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
         {% else %}
         <div class="alert alert-info text-center">
-            Belum ada absensi untuk event ini.
+            <i class="fas fa-info-circle fa-2x mb-3"></i>
+            <h5>Belum ada absensi untuk event ini.</h5>
+            <p class="mb-0">Silakan gunakan QR Code, Token, atau Absen Manual untuk menambahkan peserta.</p>
         </div>
         {% endif %}
+    </div>
+</div>
+
+<!-- Modal Konfirmasi Hapus Semua Absensi -->
+<div class="modal fade" id="deleteAllAbsenModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Konfirmasi Hapus Semua Absensi</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Apakah Anda yakin ingin menghapus <strong>SEMUA</strong> data absensi untuk event:</p>
+                <div class="alert alert-warning">
+                    <strong>"{{ event.nama_event }}"</strong>
+                </div>
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>Peringatan:</strong> Tindakan ini akan menghapus {{ absensi|length }} data absensi dan tidak dapat dikembalikan!
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <form method="POST" action="{{ url_for('hapus_semua_absen', event_id=event.id) }}" style="display: inline;">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash"></i> Ya, Hapus Semua
+                    </button>
+                </form>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

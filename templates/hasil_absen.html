@@ -54,6 +54,8 @@
                         <th>No</th>
                         <th>Nama Lengkap</th>
                         <th>Username</th>
+                        <th>Nomor Telepon</th>
+                        <th>RT</th>
                         <th>Waktu Absen</th>
                         <th>Metode</th>
                         <th>Aksi</th>
@@ -65,6 +67,8 @@
                         <td>{{ loop.index }}</td>
                         <td>{{ absen.nama_lengkap }}</td>
                         <td>{{ absen.username }}</td>
+                        <td>{{ absen.nomor_telepon or '-' }}</td>
+                        <td>{{ absen.rt or '-' }}</td>
                         <td>{{ absen.waktu_absen.strftime('%d-%m-%Y %H:%M:%S') }}</td>
                         <td>
                             {% if absen.metode_absen == 'qr_code' %}
@@ -97,6 +101,8 @@
                                     <div class="alert alert-info">
                                         <strong>{{ absen.nama_lengkap }}</strong><br>
                                         <small>{{ absen.username }}</small><br>
+                                        <small>Telp: {{ absen.nomor_telepon or '-' }}</small><br>
+                                        <small>RT: {{ absen.rt or '-' }}</small><br>
                                         <small>{{ absen.waktu_absen.strftime('%d-%m-%Y %H:%M:%S') }}</small>
                                     </div>
                                 </div>

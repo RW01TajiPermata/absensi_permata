@@ -20,10 +20,10 @@ app.secret_key = 'absensi-permata-secret-key-2024'
 def get_db_connection():
     try:
         conn = mysql.connector.connect(
-            host='a4181o.h.filess.io',
-            user='absensi_permata_vaporearn',
-            password='13d1d8036c3a2b2696cbf65d82e51006db95493e',
-            database='absensi_permata_vaporearn',
+            host='4ak18v.h.filess.io',
+            user='absensi_permata_downdoesno',
+            password='48b6583e7f16bf8fb3115bf98bcc90d4d130f090',
+            database='absensi_permata_downdoesno',
             auth_plugin='mysql_native_password',
             port='61002'
         )
@@ -48,6 +48,49 @@ def generate_token(length=6):
     characters = string.ascii_uppercase + string.digits
     return ''.join(random.choice(characters) for _ in range(length))
 
+# Fungsi untuk memastikan admin ada dengan password yang benar
+def ensure_admin_exists():
+    conn = get_db_connection()
+    if not conn:
+        return False
+        
+    cursor = conn.cursor(dictionary=True)
+    
+    try:
+        # Cek apakah admin sudah ada
+        cursor.execute("SELECT * FROM users WHERE username = 'admin'")
+        admin = cursor.fetchone()
+        
+        if admin:
+            # Test password admin123
+            if check_password_hash(admin['password'], 'admin123'):
+                print("✅ Admin exists with correct password")
+                return True
+            else:
+                # Update password admin
+                new_hash = generate_password_hash('admin123')
+                cursor.execute("UPDATE users SET password = %s WHERE username = 'admin'", (new_hash,))
+                conn.commit()
+                print("✅ Admin password updated to 'admin123'")
+                return True
+        else:
+            # Buat admin baru
+            hashed_password = generate_password_hash('admin123')
+            cursor.execute(
+                "INSERT INTO users (username, password, nama_lengkap, role) VALUES (%s, %s, %s, 'admin')",
+                ('admin', hashed_password, 'Administrator Permata')
+            )
+            conn.commit()
+            print("✅ Admin user created with password 'admin123'")
+            return True
+            
+    except Exception as e:
+        print(f"❌ Error ensuring admin exists: {e}")
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
 # Routes
 @app.route('/')
 def index():
@@ -60,50 +103,15 @@ def index():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    # Pastikan admin exists dengan password yang benar
+    ensure_admin_exists()
+    
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
         
         print(f"Login attempt for: {username}")
         
-        # SPECIAL CASE: Admin login dengan password fixed
-        if username == 'admin' and password == 'admin123':
-            conn = get_db_connection()
-            if not conn:
-                flash('Koneksi database gagal!', 'error')
-                return render_template('login.html')
-                
-            cursor = conn.cursor(dictionary=True)
-            
-            cursor.execute("SELECT * FROM users WHERE username = 'admin'")
-            user = cursor.fetchone()
-            
-            if not user:
-                # Buat admin user jika tidak ada
-                hashed_password = generate_password_hash('admin123')
-                cursor.execute(
-                    "INSERT INTO users (username, password, nama_lengkap, role) VALUES (%s, %s, %s, 'admin')",
-                    ('admin', hashed_password, 'Administrator Permata')
-                )
-                conn.commit()
-                
-                # Ambil user yang baru dibuat
-                cursor.execute("SELECT * FROM users WHERE username = 'admin'")
-                user = cursor.fetchone()
-            
-            cursor.close()
-            conn.close()
-            
-            if user:
-                session['user_id'] = user['id']
-                session['username'] = user['username']
-                session['nama_lengkap'] = user['nama_lengkap']
-                session['role'] = user['role']
-                
-                flash(f'Login berhasil! Selamat datang {user["nama_lengkap"]}', 'success')
-                return redirect(url_for('admin_dashboard'))
-        
-        # Untuk user biasa, check normal
         conn = get_db_connection()
         if not conn:
             flash('Koneksi database gagal!', 'error')
@@ -116,7 +124,23 @@ def login():
         
         if user:
             print(f"User found: {user['username']}")
-            # Check password dengan method yang sama
+            print(f"User role: {user['role']}")
+            
+            # SPECIAL CASE: Jika admin dan password adalah admin123, langsung approve
+            if user['role'] == 'admin' and password == 'admin123':
+                print("✅ Admin login with fixed password")
+                session['user_id'] = user['id']
+                session['username'] = user['username']
+                session['nama_lengkap'] = user['nama_lengkap']
+                session['role'] = user['role']
+                
+                cursor.close()
+                conn.close()
+                
+                flash(f'Login berhasil! Selamat datang {user["nama_lengkap"]}', 'success')
+                return redirect(url_for('admin_dashboard'))
+            
+            # Check password dengan method yang sama untuk user biasa
             is_valid = check_password_hash(user['password'], password)
             print(f"Password valid: {is_valid}")
         else:
@@ -162,8 +186,18 @@ def register():
             flash('Password harus minimal 6 karakter!', 'error')
             return render_template('register.html')
         
-        if not re.match(r'^[a-zA-Z0-9_]{3,20}$', username):
-            flash('Username hanya boleh mengandung huruf, angka, dan underscore (3-20 karakter)!', 'error')
+        # Validasi username yang lebih fleksibel - bisa huruf, angka, spasi, dan karakter umum
+        if len(username) < 3:
+            flash('Username harus minimal 3 karakter!', 'error')
+            return render_template('register.html')
+        
+        if len(username) > 50:
+            flash('Username maksimal 50 karakter!', 'error')
+            return render_template('register.html')
+        
+        # Cek karakter yang tidak diizinkan
+        if re.match(r'^[a-zA-Z0-9\s\.\-_@]+$', username) is None:
+            flash('Username mengandung karakter yang tidak diizinkan! Hanya boleh huruf, angka, spasi, titik, dash, underscore, dan @.', 'error')
             return render_template('register.html')
         
         conn = get_db_connection()
@@ -184,7 +218,7 @@ def register():
         
         # Generate hash password dengan method yang sama
         hashed_password = generate_password_hash(password)
-        nama_lengkap = username.capitalize()
+        nama_lengkap = username  # Gunakan username sebagai nama lengkap
         
         try:
             cursor.execute(
@@ -949,7 +983,7 @@ def absen(event_id):
     return render_template('absen.html', event=event, is_admin=False)
 
 if __name__ == '__main__':
+    # Pastikan admin exists saat aplikasi start
+    ensure_admin_exists()
     qr_manager.start()
     app.run(debug=True, host='0.0.0.0', port=5000)
-
-

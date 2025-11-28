@@ -20,12 +20,11 @@ app.secret_key = 'absensi-permata-secret-key-2024'
 def get_db_connection():
     try:
         conn = mysql.connector.connect(
-            host='a4181o.h.filess.io',
-            user='absensi_permata_vaporearn',
-            password='13d1d8036c3a2b2696cbf65d82e51006db95493e',
-            database='absensi_permata_vaporearn',
-            auth_plugin='mysql_native_password',
-            port='61002'
+            host='localhost',
+            user='root',
+            password='',
+            database='absensi_permata',
+            auth_plugin='mysql_native_password'
         )
         return conn
     except mysql.connector.Error as err:
@@ -833,5 +832,4 @@ def absen(event_id):
 
 if __name__ == '__main__':
     qr_manager.start()
-
     app.run(debug=True, host='0.0.0.0', port=5000)

@@ -4,46 +4,95 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>{{ 'Daftar Event' if is_admin else 'Event Tersedia' }}</h2>
     {% if is_admin %}
-    <a href="{{ url_for('buat_event') }}" class="btn btn-primary">Buat Event Baru</a>
+    <a href="{{ url_for('buat_event') }}" class="btn btn-primary">
+        <i class="fas fa-plus"></i> Buat Event Baru
+    </a>
     {% endif %}
 </div>
 
 <div class="row">
     {% for event in events %}
     <div class="col-md-6 mb-4">
-        <div class="card">
+        <div class="card h-100">
             <div class="card-body">
                 <h5 class="card-title">{{ event.nama_event }}</h5>
                 <p class="card-text">{{ event.deskripsi }}</p>
                 <div class="mb-2">
                     <small class="text-muted">
-                        📅 {{ event.tanggal_event }}<br>
-                        ⏰ {{ event.waktu_event }}<br>
-                        📍 {{ event.lokasi }}
+                        <i class="fas fa-calendar"></i> {{ event.tanggal_event }}<br>
+                        <i class="fas fa-clock"></i> {{ event.waktu_event }}<br>
+                        <i class="fas fa-map-marker-alt"></i> {{ event.lokasi }}
                     </small>
                 </div>
                 
                 <div class="d-flex gap-2 flex-wrap">
                     {% if is_admin %}
-                    <a href="{{ url_for('generate_qr_code', event_id=event.id) }}" class="btn btn-sm btn-success">QR Code</a>
-                    <a href="{{ url_for('generate_token_page', event_id=event.id) }}" class="btn btn-sm btn-warning">Token</a>
-                    <a href="{{ url_for('absen_manual', event_id=event.id) }}" class="btn btn-sm btn-info">Absen Manual</a>
-                    <a href="{{ url_for('hasil_absen', event_id=event.id) }}" class="btn btn-sm btn-primary">Lihat Hasil</a>
-                    <a href="{{ url_for('download_absen', event_id=event.id) }}" class="btn btn-sm btn-secondary">Download</a>
+                    <a href="{{ url_for('generate_qr_code', event_id=event.id) }}" class="btn btn-sm btn-success">
+                        <i class="fas fa-qrcode"></i> QR Code
+                    </a>
+                    <a href="{{ url_for('generate_token_page', event_id=event.id) }}" class="btn btn-sm btn-warning">
+                        <i class="fas fa-key"></i> Token
+                    </a>
+                    <a href="{{ url_for('absen_manual', event_id=event.id) }}" class="btn btn-sm btn-info">
+                        <i class="fas fa-user-plus"></i> Absen Manual
+                    </a>
+                    <a href="{{ url_for('hasil_absen', event_id=event.id) }}" class="btn btn-sm btn-primary">
+                        <i class="fas fa-list"></i> Lihat Hasil
+                    </a>
+                    <a href="{{ url_for('download_absen', event_id=event.id) }}" class="btn btn-sm btn-secondary">
+                        <i class="fas fa-download"></i> Download
+                    </a>
+                    <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deleteEventModal{{ event.id }}">
+                        <i class="fas fa-trash"></i> Hapus
+                    </button>
                     {% else %}
                         {% if event.sudah_absen %}
-                        <button class="btn btn-sm btn-success" disabled>Sudah Absen</button>
+                        <button class="btn btn-sm btn-success" disabled>
+                            <i class="fas fa-check"></i> Sudah Absen
+                        </button>
                         {% else %}
-                        <a href="{{ url_for('absen', event_id=event.id) }}" class="btn btn-sm btn-primary">Absen Sekarang</a>
+                        <a href="{{ url_for('absen', event_id=event.id) }}" class="btn btn-sm btn-primary">
+                            <i class="fas fa-fingerprint"></i> Absen Sekarang
+                        </a>
                         {% endif %}
                     {% endif %}
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- Modal Konfirmasi Hapus Event -->
+    {% if is_admin %}
+    <div class="modal fade" id="deleteEventModal{{ event.id }}" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Konfirmasi Hapus Event</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Apakah Anda yakin ingin menghapus event <strong>"{{ event.nama_event }}"</strong>?</p>
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Peringatan:</strong> Semua data absensi yang terkait dengan event ini juga akan dihapus secara permanen!
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <form method="POST" action="{{ url_for('hapus_event', event_id=event.id) }}" style="display: inline;">
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-trash"></i> Ya, Hapus Event
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
     {% else %}
     <div class="col-12">
-        <div class="alert alert-info">
+        <div class="alert alert-info text-center">
+            <i class="fas fa-info-circle"></i>
             {{ 'Belum ada event yang dibuat.' if is_admin else 'Tidak ada event yang tersedia.' }}
         </div>
     </div>

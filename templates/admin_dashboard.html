@@ -4,7 +4,9 @@
 <div class="row">
     <div class="col-12">
         <h2>Dashboard Admin</h2>
-        <p class="text-muted">Selamat datang, {{ session.nama_lengkap }}</p>
+        <p class="text-muted">
+            <i class="fas fa-user-shield"></i> Selamat datang, {{ session.nama_lengkap }}
+        </p>
     </div>
 </div>
 
@@ -12,24 +14,45 @@
     <div class="col-md-4">
         <div class="card text-white bg-primary">
             <div class="card-body">
-                <h5 class="card-title">{{ total_events }}</h5>
-                <p class="card-text">Total Event</p>
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5 class="card-title">{{ total_events }}</h5>
+                        <p class="card-text">Total Event</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-calendar-alt fa-2x"></i>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
     <div class="col-md-4">
         <div class="card text-white bg-success">
             <div class="card-body">
-                <h5 class="card-title">{{ total_users }}</h5>
-                <p class="card-text">Total Anggota</p>
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5 class="card-title">{{ total_users }}</h5>
+                        <p class="card-text">Total Anggota</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-users fa-2x"></i>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
     <div class="col-md-4">
         <div class="card text-white bg-warning">
             <div class="card-body">
-                <h5 class="card-title">{{ total_absen_hari_ini }}</h5>
-                <p class="card-text">Absen Hari Ini</p>
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5 class="card-title">{{ total_absen_hari_ini }}</h5>
+                        <p class="card-text">Absen Hari Ini</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-fingerprint fa-2x"></i>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -38,13 +61,17 @@
 <div class="row mt-4">
     <div class="col-md-6">
         <div class="card">
-            <div class="card-header">
-                <h5>Menu Cepat</h5>
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-rocket"></i> Menu Cepat</h5>
             </div>
             <div class="card-body">
                 <div class="d-grid gap-2">
-                    <a href="{{ url_for('buat_event') }}" class="btn btn-primary">Buat Event Baru</a>
-                    <a href="{{ url_for('admin_events') }}" class="btn btn-outline-primary">Lihat Semua Event</a>
+                    <a href="{{ url_for('buat_event') }}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Buat Event Baru
+                    </a>
+                    <a href="{{ url_for('admin_events') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-list"></i> Lihat Semua Event
+                    </a>
                 </div>
             </div>
         </div>
@@ -52,25 +79,35 @@
     
     <div class="col-md-6">
         <div class="card">
-            <div class="card-header">
-                <h5>Event Hari Ini</h5>
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="fas fa-calendar-day"></i> Event Hari Ini</h5>
             </div>
             <div class="card-body">
                 {% if events_hari_ini %}
                     {% for event in events_hari_ini %}
-                    <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
                         <div>
                             <strong>{{ event.nama_event }}</strong><br>
-                            <small>{{ event.waktu_event }} - {{ event.lokasi }}</small>
+                            <small class="text-muted">
+                                <i class="fas fa-clock"></i> {{ event.waktu_event }} - 
+                                <i class="fas fa-map-marker-alt"></i> {{ event.lokasi }}
+                            </small>
                         </div>
-                        <div>
-                            <a href="{{ url_for('generate_qr_code', event_id=event.id) }}" class="btn btn-sm btn-success">QR Code</a>
-                            <a href="{{ url_for('hasil_absen', event_id=event.id) }}" class="btn btn-sm btn-info">Hasil</a>
+                        <div class="btn-group">
+                            <a href="{{ url_for('generate_qr_code', event_id=event.id) }}" class="btn btn-sm btn-success" title="QR Code">
+                                <i class="fas fa-qrcode"></i>
+                            </a>
+                            <a href="{{ url_for('hasil_absen', event_id=event.id) }}" class="btn btn-sm btn-info" title="Hasil">
+                                <i class="fas fa-list"></i>
+                            </a>
                         </div>
                     </div>
                     {% endfor %}
                 {% else %}
-                    <p class="text-muted">Tidak ada event hari ini</p>
+                    <p class="text-muted text-center">
+                        <i class="fas fa-calendar-times fa-2x mb-2"></i><br>
+                        Tidak ada event hari ini
+                    </p>
                 {% endif %}
             </div>
         </div>

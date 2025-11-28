@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header text-center">
+                <h4>{{ 'Generate QR Code' if is_admin else 'Absensi Event' }}</h4>
+            </div>
+            <div class="card-body text-center">
+                <h5>{{ event.nama_event }}</h5>
+                <p class="text-muted">
+                    📅 {{ event.tanggal_event }} | ⏰ {{ event.waktu_event }}<br>
+                    📍 {{ event.lokasi }}
+                </p>
+                
+                {% if is_admin %}
+                <div class="mb-4">
+                    <p class="text-info">QR Code akan berubah otomatis setiap 30 detik</p>
+                    {% if qr_code %}
+                    <img src="data:image/png;base64,{{ qr_code }}" alt="QR Code" class="img-fluid mb-3" style="max-width: 300px;">
+                    {% endif %}
+                </div>
+                
+                <div class="alert alert-warning">
+                    <strong>Instruksi:</strong> Tampilkan QR code ini kepada anggota untuk melakukan absensi
+                </div>
+                
+                {% else %}
+                <div class="mb-4">
+                    <ul class="nav nav-tabs" id="absenTab" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="qr-tab" data-bs-toggle="tab" data-bs-target="#qr" type="button" role="tab">
+                                QR Code
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="token-tab" data-bs-toggle="tab" data-bs-target="#token" type="button" role="tab">
+                                Token
+                            </button>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content mt-3" id="absenTabContent">
+                        <!-- Tab QR Code -->
+                        <div class="tab-pane fade show active" id="qr" role="tabpanel">
+                            <p>Scan QR code yang ditampilkan admin untuk melakukan absensi</p>
+                            <form method="POST" class="mt-4">
+                                <input type="hidden" name="absen_type" value="qr_code">
+                                <div class="mb-3">
+                                    <label for="qr_code" class="form-label">Masukkan Kode QR</label>
+                                    <input type="text" class="form-control" id="qr_code" name="qr_code" 
+                                           placeholder="Masukkan kode QR yang ditampilkan" required>
+                                    <div class="form-text">Mintalah kode QR terbaru kepada admin</div>
+                                </div>
+                                <button type="submit" class="btn btn-primary btn-lg">Submit Absensi QR Code</button>
+                            </form>
+                        </div>
+                        
+                        <!-- Tab Token -->
+                        <div class="tab-pane fade" id="token" role="tabpanel">
+                            <p>Masukkan token yang diberikan admin untuk melakukan absensi</p>
+                            <form method="POST" class="mt-4">
+                                <input type="hidden" name="absen_type" value="token">
+                                <div class="mb-3">
+                                    <label for="token" class="form-label">Masukkan Token</label>
+                                    <input type="text" class="form-control" id="token" name="token" 
+                                           placeholder="Masukkan token (contoh: A1B2C3)" required>
+                                    <div class="form-text">Mintalah token terbaru kepada admin</div>
+                                </div>
+                                <button type="submit" class="btn btn-warning btn-lg">Submit Absensi Token</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                
+                <div class="mt-4">
+                    <a href="{{ url_for('admin_events' if is_admin else 'user_events') }}" 
+                       class="btn btn-outline-secondary">Kembali</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if is_admin and refresh_interval %}
+<script>
+    // Auto refresh QR code
+    setTimeout(function() {
+        window.location.reload();
+    }, {{ refresh_interval }});
+</script>
+{% endif %}
+{% endblock %}

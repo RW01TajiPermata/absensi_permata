@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header text-center bg-success text-white">
+                <h4 class="mb-0">Token Absensi</h4>
+            </div>
+            <div class="card-body text-center">
+                <h5>{{ event.nama_event }}</h5>
+                <p class="text-muted">
+                    📅 {{ event.tanggal_event }} | ⏰ {{ event.waktu_event }}<br>
+                    📍 {{ event.lokasi }}
+                </p>
+                
+                <div class="mb-4">
+                    <p class="text-info">Token akan berubah otomatis setiap 10 menit</p>
+                    <div class="token-display bg-light p-4 rounded">
+                        <h1 class="display-4 text-primary font-weight-bold">{{ token }}</h1>
+                    </div>
+                    <small class="text-muted">Berikan token ini kepada anggota untuk absen</small>
+                </div>
+                
+                <div class="alert alert-warning">
+                    <strong>Instruksi:</strong> Bagikan token ini kepada anggota untuk melakukan absensi
+                </div>
+                
+                <div class="mt-4">
+                    <a href="{{ url_for('admin_events') }}" class="btn btn-outline-secondary">Kembali</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Auto refresh token
+    setTimeout(function() {
+        window.location.reload();
+    }, {{ refresh_interval }});
+</script>
+{% endblock %}

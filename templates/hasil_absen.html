@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Hasil Absensi - {{ event.nama_event }}</h2>
+    <div>
+        <a href="{{ url_for('download_absen', event_id=event.id) }}" class="btn btn-success">Download CSV</a>
+        <a href="{{ url_for('admin_events') }}" class="btn btn-outline-secondary">Kembali</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5>Detail Event</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-3">
+                <strong>Tanggal:</strong> {{ event.tanggal_event }}
+            </div>
+            <div class="col-md-3">
+                <strong>Waktu:</strong> {{ event.waktu_event }}
+            </div>
+            <div class="col-md-3">
+                <strong>Lokasi:</strong> {{ event.lokasi }}
+            </div>
+            <div class="col-md-3">
+                <strong>Total Absen:</strong> {{ absensi|length }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5>Daftar Hadir</h5>
+    </div>
+    <div class="card-body">
+        {% if absensi %}
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>No</th>
+                        <th>Nama Lengkap</th>
+                        <th>Username</th>
+                        <th>Waktu Absen</th>
+                        <th>Metode</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for absen in absensi %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>{{ absen.nama_lengkap }}</td>
+                        <td>{{ absen.username }}</td>
+                        <td>{{ absen.waktu_absen.strftime('%d-%m-%Y %H:%M:%S') }}</td>
+                        <td>
+                            {% if absen.metode_absen == 'qr_code' %}
+                                <span class="badge bg-success">QR Code</span>
+                            {% elif absen.metode_absen == 'token' %}
+                                <span class="badge bg-warning">Token</span>
+                            {% else %}
+                                <span class="badge bg-info">Manual</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info text-center">
+            Belum ada absensi untuk event ini.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

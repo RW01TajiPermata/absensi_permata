@@ -41,11 +41,6 @@
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="manual-tab" data-bs-toggle="tab" data-bs-target="#manual" type="button" role="tab">
-                                ⌨️ Input Manual
-                            </button>
-                        </li>
-                        <li class="nav-item" role="presentation">
                             <button class="nav-link" id="token-tab" data-bs-toggle="tab" data-bs-target="#token" type="button" role="tab">
                                 🔑 Token
                             </button>
@@ -83,22 +78,13 @@
                                     <strong>QR Code Terdeteksi:</strong>
                                     <span id="qr-result-text"></span>
                                 </div>
+
+                                <!-- Form untuk QR Code (hidden, diisi otomatis) -->
+                                <form method="POST" id="qr-form" style="display: none;">
+                                    <input type="hidden" name="absen_type" value="qr_code">
+                                    <input type="hidden" name="qr_code" id="qr_code">
+                                </form>
                             </div>
-                        </div>
-                        
-                        <!-- Tab Input Manual -->
-                        <div class="tab-pane fade" id="manual" role="tabpanel">
-                            <p>Masukkan kode QR secara manual</p>
-                            <form method="POST" class="mt-4">
-                                <input type="hidden" name="absen_type" value="qr_code">
-                                <div class="mb-3">
-                                    <label for="qr_code" class="form-label">Masukkan Kode QR</label>
-                                    <input type="text" class="form-control" id="qr_code" name="qr_code" 
-                                           placeholder="Masukkan kode QR yang ditampilkan" required>
-                                    <div class="form-text">Mintalah kode QR terbaru kepada admin</div>
-                                </div>
-                                <button type="submit" class="btn btn-primary btn-lg">Submit Absensi QR Code</button>
-                            </form>
                         </div>
                         
                         <!-- Tab Token -->
@@ -209,6 +195,8 @@
             .catch(function(err) {
                 console.error("Error accessing camera: ", err);
                 alert('Tidak dapat mengakses kamera. Pastikan Anda memberikan izin akses kamera.');
+                // Jika kamera tidak tersedia, arahkan ke tab token
+                document.getElementById('token-tab').click();
             });
     }
     
@@ -243,7 +231,7 @@
                 // Stop camera after successful scan
                 setTimeout(() => {
                     stopCamera();
-                    document.querySelector('button[type="submit"]').click();
+                    document.getElementById('qr-form').submit();
                 }, 1000);
             } else {
                 alert('QR Code tidak terdeteksi. Coba lagi dengan pencahayaan yang lebih baik.');
@@ -270,7 +258,7 @@
                 // Stop camera and submit
                 setTimeout(() => {
                     stopCamera();
-                    document.querySelector('button[type="submit"]').click();
+                    document.getElementById('qr-form').submit();
                 }, 1000);
                 
                 return; // Stop scanning after success
@@ -286,10 +274,10 @@
         stopCamera();
     });
     
-    // Switch to manual tab when camera is not available
+    // Switch to token tab when camera is not available
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         document.getElementById('scan-tab').style.display = 'none';
-        document.getElementById('manual-tab').click();
+        document.getElementById('token-tab').click();
     }
 </script>
 {% endif %}

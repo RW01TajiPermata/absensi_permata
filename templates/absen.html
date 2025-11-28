@@ -2,7 +2,7 @@
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-8">
+    <div class="col-md-10">
         <div class="card">
             <div class="card-header text-center">
                 <h4>{{ 'Generate QR Code' if is_admin else 'Absensi Event' }}</h4>
@@ -30,21 +30,59 @@
                 <div class="mb-4">
                     <ul class="nav nav-tabs" id="absenTab" role="tablist">
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link active" id="qr-tab" data-bs-toggle="tab" data-bs-target="#qr" type="button" role="tab">
-                                QR Code
+                            <button class="nav-link active" id="scan-tab" data-bs-toggle="tab" data-bs-target="#scan" type="button" role="tab">
+                                📷 Scan QR Code
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="manual-tab" data-bs-toggle="tab" data-bs-target="#manual" type="button" role="tab">
+                                ⌨️ Input Manual
                             </button>
                         </li>
                         <li class="nav-item" role="presentation">
                             <button class="nav-link" id="token-tab" data-bs-toggle="tab" data-bs-target="#token" type="button" role="tab">
-                                Token
+                                🔑 Token
                             </button>
                         </li>
                     </ul>
                     
                     <div class="tab-content mt-3" id="absenTabContent">
-                        <!-- Tab QR Code -->
-                        <div class="tab-pane fade show active" id="qr" role="tabpanel">
-                            <p>Scan QR code yang ditampilkan admin untuk melakukan absensi</p>
+                        <!-- Tab Scan QR Code -->
+                        <div class="tab-pane fade show active" id="scan" role="tabpanel">
+                            <div class="mb-3">
+                                <p>Gunakan kamera untuk scan QR Code yang ditampilkan admin</p>
+                                
+                                <div class="camera-container mb-3">
+                                    <div id="camera-preview" class="border rounded p-2 text-center" style="min-height: 300px; background: #f8f9fa;">
+                                        <div id="camera-placeholder" class="py-5">
+                                            <i class="fas fa-camera fa-3x text-muted mb-3"></i>
+                                            <p class="text-muted">Kamera siap untuk scanning</p>
+                                            <button id="start-camera" class="btn btn-primary btn-sm">Aktifkan Kamera</button>
+                                        </div>
+                                        <video id="video" width="100%" style="display: none;"></video>
+                                        <canvas id="canvas" style="display: none;"></canvas>
+                                    </div>
+                                </div>
+                                
+                                <div class="camera-controls mb-3">
+                                    <button id="capture-btn" class="btn btn-success" style="display: none;">
+                                        <i class="fas fa-camera"></i> Capture QR Code
+                                    </button>
+                                    <button id="switch-camera" class="btn btn-outline-secondary btn-sm" style="display: none;">
+                                        <i class="fas fa-sync-alt"></i> Switch Camera
+                                    </button>
+                                </div>
+                                
+                                <div id="scan-result" class="alert alert-info" style="display: none;">
+                                    <strong>QR Code Terdeteksi:</strong>
+                                    <span id="qr-result-text"></span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Tab Input Manual -->
+                        <div class="tab-pane fade" id="manual" role="tabpanel">
+                            <p>Masukkan kode QR secara manual</p>
                             <form method="POST" class="mt-4">
                                 <input type="hidden" name="absen_type" value="qr_code">
                                 <div class="mb-3">
@@ -83,15 +121,154 @@
         </div>
     </div>
 </div>
+
+<!-- QR Code Scanner Library -->
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 {% endblock %}
 
 {% block scripts %}
 {% if is_admin and refresh_interval %}
 <script>
-    // Auto refresh QR code
+    // Auto refresh QR code untuk admin
     setTimeout(function() {
         window.location.reload();
     }, {{ refresh_interval }});
+</script>
+{% else %}
+<script>
+    // QR Code Scanner untuk user
+    let video = document.getElementById('video');
+    let canvas = document.getElementById('canvas');
+    let context = canvas.getContext('2d');
+    let currentStream = null;
+    let currentFacingMode = 'environment'; // environment = back camera, user = front camera
+    
+    document.getElementById('start-camera').addEventListener('click', function() {
+        startCamera();
+    });
+    
+    document.getElementById('switch-camera').addEventListener('click', function() {
+        switchCamera();
+    });
+    
+    document.getElementById('capture-btn').addEventListener('click', function() {
+        captureQRCode();
+    });
+    
+    function startCamera() {
+        if (currentStream) {
+            stopCamera();
+        }
+        
+        const constraints = {
+            video: { 
+                facingMode: currentFacingMode,
+                width: { ideal: 640 },
+                height: { ideal: 480 }
+            },
+            audio: false
+        };
+        
+        navigator.mediaDevices.getUserMedia(constraints)
+            .then(function(stream) {
+                currentStream = stream;
+                video.srcObject = stream;
+                video.play();
+                
+                document.getElementById('camera-placeholder').style.display = 'none';
+                video.style.display = 'block';
+                document.getElementById('capture-btn').style.display = 'inline-block';
+                document.getElementById('switch-camera').style.display = 'inline-block';
+                document.getElementById('start-camera').style.display = 'none';
+                
+                // Start scanning automatically
+                requestAnimationFrame(scanQRCode);
+            })
+            .catch(function(err) {
+                console.error("Error accessing camera: ", err);
+                alert('Tidak dapat mengakses kamera. Pastikan Anda memberikan izin akses kamera.');
+            });
+    }
+    
+    function stopCamera() {
+        if (currentStream) {
+            currentStream.getTracks().forEach(track => track.stop());
+            currentStream = null;
+        }
+    }
+    
+    function switchCamera() {
+        currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+        startCamera();
+    }
+    
+    function captureQRCode() {
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height);
+            
+            if (code) {
+                document.getElementById('qr-result-text').textContent = code.data;
+                document.getElementById('scan-result').style.display = 'block';
+                
+                // Auto-submit the form
+                document.getElementById('qr_code').value = code.data;
+                
+                // Stop camera after successful scan
+                setTimeout(() => {
+                    stopCamera();
+                    document.querySelector('button[type="submit"]').click();
+                }, 1000);
+            } else {
+                alert('QR Code tidak terdeteksi. Coba lagi dengan pencahayaan yang lebih baik.');
+            }
+        }
+    }
+    
+    function scanQRCode() {
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height);
+            
+            if (code) {
+                document.getElementById('qr-result-text').textContent = code.data;
+                document.getElementById('scan-result').style.display = 'block';
+                
+                // Auto-fill and submit
+                document.getElementById('qr_code').value = code.data;
+                
+                // Stop camera and submit
+                setTimeout(() => {
+                    stopCamera();
+                    document.querySelector('button[type="submit"]').click();
+                }, 1000);
+                
+                return; // Stop scanning after success
+            }
+        }
+        
+        // Continue scanning
+        requestAnimationFrame(scanQRCode);
+    }
+    
+    // Clean up when leaving page
+    window.addEventListener('beforeunload', function() {
+        stopCamera();
+    });
+    
+    // Switch to manual tab when camera is not available
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        document.getElementById('scan-tab').style.display = 'none';
+        document.getElementById('manual-tab').click();
+    }
 </script>
 {% endif %}
 {% endblock %}

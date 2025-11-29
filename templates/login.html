@@ -23,8 +23,13 @@
                         <label for="password" class="form-label">
                             <i class="fas fa-lock"></i> Password
                         </label>
-                        <input type="password" class="form-control" id="password" name="password" 
-                               placeholder="Masukkan password Anda" required>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="password" name="password" 
+                                   placeholder="Masukkan password Anda" required>
+                            <button type="button" class="btn btn-outline-secondary" id="togglePassword">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
                     </div>
                     <button type="submit" class="btn btn-primary w-100 btn-lg">
                         <i class="fas fa-sign-in-alt"></i> Login
@@ -56,14 +61,53 @@
                         <i class="fas fa-user-plus"></i> Belum punya akun? 
                         <a href="{{ url_for('register') }}" class="text-decoration-none fw-bold">Daftar di sini</a>
                     </p>
-                    <small class="text-muted">
-                        <i class="fas fa-key"></i> admin: <strong>Permata</strong>
-                    </small>
+                    <p class="mb-2">
+                        <i class="fas fa-key"></i> Lupa password? 
+                        <a href="{{ url_for('lupa_sandi') }}" class="text-decoration-none fw-bold">Reset di sini</a>
+                    </p>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const togglePassword = document.getElementById('togglePassword');
+    const passwordInput = document.getElementById('password');
+    
+    togglePassword.addEventListener('click', function() {
+        // Toggle the type attribute
+        const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+        passwordInput.setAttribute('type', type);
+        
+        // Toggle the eye icon
+        const icon = this.querySelector('i');
+        if (type === 'text') {
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+        } else {
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+        }
+    });
+});
+</script>
+
+<style>
+.input-group .btn {
+    border: 1px solid #ced4da;
+    border-left: none;
+}
+
+.input-group .btn:hover {
+    background-color: #e9ecef;
+    border-color: #ced4da;
+}
+
+.input-group .form-control:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+</style>
 {% endblock %}
-
-

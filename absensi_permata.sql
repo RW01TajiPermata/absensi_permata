@@ -7,6 +7,8 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(100) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     nama_lengkap VARCHAR(255) NOT NULL,
+    nomor_telepon VARCHAR(20), -- Tambahan field nomor telepon
+    rt VARCHAR(10), -- Tambahan field RT
     role ENUM('admin', 'user') DEFAULT 'user',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -57,6 +59,26 @@ CREATE TABLE IF NOT EXISTS tokens (
     FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
 );
 
--- Insert admin default
-INSERT IGNORE INTO users (username, password, nama_lengkap, role) 
-VALUES ('admin', 'pbkdf2:sha256:600000$Ct5oau2wijn6qX5w$8a2ceaf1ca1a8b9c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4', 'Administrator Permata', 'admin');
+-- Tabel untuk reset password
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    token VARCHAR(100) NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    used BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+
+-- Buat index untuk performa
+CREATE INDEX idx_password_reset_tokens_token ON password_reset_tokens(token);
+CREATE INDEX idx_password_reset_tokens_user_id ON password_reset_tokens(user_id);
+CREATE INDEX idx_qr_codes_event_id ON qr_codes(event_id);
+CREATE INDEX idx_tokens_event_id ON tokens(event_id);
+CREATE INDEX idx_absensi_event_id ON absensi(event_id);
+CREATE INDEX idx_absensi_user_id ON absensi(user_id);
+CREATE INDEX idx_events_created_by ON events(created_by);
+
+
+UPDATE users SET rt = 'KOTA' WHERE rt = '004';

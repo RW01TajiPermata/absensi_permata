@@ -20,10 +20,10 @@ app.secret_key = 'absensi-permata-secret-key-2024'
 def get_db_connection():
     try:
         conn = mysql.connector.connect(
-            host='ukocws.h.filess.io',
-            user='absensi_permata_flamedogas',
-            password='61f12287fa8925e353dcd1d0f7dc37cfaf0e4a42',
-            database='absensi_permata_flamedogas',
+            host='zryakt.h.filess.io',
+            user='absensi_permata_throwguide',
+            password='53f413c8220163e583d143be7a0a0bceacdfe470',
+            database='absensi_permata_throwguide',
             auth_plugin='mysql_native_password',
             port='3307'
         )
@@ -219,16 +219,14 @@ def register():
             # Simpan nomor telepon yang sudah dibersihkan
             nomor_telepon = nomor_telepon_clean
         
-        # Validasi RT
-        if rt:
-            if not re.match(r'^\d{1,3}$', rt):
-                flash('RT harus berupa angka 1-3 digit!', 'error')
-                return render_template('register.html')
-            if int(rt) < 1 or int(rt) > 999:
-                flash('RT harus antara 001-999!', 'error')
-                return render_template('register.html')
-            # Format RT menjadi 3 digit
-            rt = rt.zfill(3)
+        # Validasi RT - hanya 4 pilihan yang diperbolehkan
+        valid_rt = ['001', '002', '003', '004']
+        if not rt:
+            flash('RT harus dipilih!', 'error')
+            return render_template('register.html')
+        if rt not in valid_rt:
+            flash('RT yang dipilih tidak valid!', 'error')
+            return render_template('register.html')
         
         conn = get_db_connection()
         if not conn:
@@ -253,7 +251,7 @@ def register():
         try:
             cursor.execute(
                 "INSERT INTO users (username, password, nama_lengkap, nomor_telepon, rt, role) VALUES (%s, %s, %s, %s, %s, 'user')",
-                (username, hashed_password, nama_lengkap, nomor_telepon if nomor_telepon else None, rt if rt else None)
+                (username, hashed_password, nama_lengkap, nomor_telepon if nomor_telepon else None, rt)
             )
             conn.commit()
             
@@ -1038,4 +1036,3 @@ if __name__ == '__main__':
     # Pastikan admin exists saat aplikasi start
     ensure_admin_exists()
     qr_manager.start()
-

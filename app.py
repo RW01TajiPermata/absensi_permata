@@ -20,10 +20,10 @@ app.secret_key = 'absensi-permata-secret-key-2024'
 def get_db_connection():
     try:
         conn = mysql.connector.connect(
-            host='zryakt.h.filess.io',
-            user='absensi_permata_throwguide',
-            password='53f413c8220163e583d143be7a0a0bceacdfe470',
-            database='absensi_permata_throwguide',
+            host='ls4zzp.h.filess.io',
+            user='absensi_permata_inventeddo',
+            password='542d71cd4aa005eba4c81953fc47384f599b315f',
+            database='absensi_permata_inventeddo',
             auth_plugin='mysql_native_password',
             port='3307'
         )
@@ -90,6 +90,149 @@ def ensure_admin_exists():
     finally:
         cursor.close()
         conn.close()
+
+# Fungsi untuk cek apakah user sudah absen di event tertentu
+def sudah_absen(user_id, event_id):
+    conn = get_db_connection()
+    if not conn:
+        return True  # Untuk safety, anggap sudah absen jika koneksi gagal
+        
+    cursor = conn.cursor(dictionary=True)
+    
+    try:
+        cursor.execute("SELECT id FROM absensi WHERE user_id = %s AND event_id = %s", (user_id, event_id))
+        absen = cursor.fetchone()
+        return absen is not None
+    except Exception as e:
+        print(f"Error checking absensi: {e}")
+        return True
+    finally:
+        cursor.close()
+        conn.close()
+
+# Routes untuk Lupa Sandi
+@app.route('/lupa-sandi', methods=['GET', 'POST'])
+def lupa_sandi():
+    if request.method == 'POST':
+        username = request.form['username']
+        
+        conn = get_db_connection()
+        if not conn:
+            flash('Koneksi database gagal!', 'error')
+            return render_template('lupa_sandi.html')
+            
+        cursor = conn.cursor(dictionary=True)
+        
+        try:
+            # Cari user berdasarkan username
+            cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
+            user = cursor.fetchone()
+            
+            if user:
+                # Generate reset token
+                reset_token = secrets.token_urlsafe(32)
+                expires_at = datetime.datetime.now() + datetime.timedelta(minutes=30)  # Token berlaku 30 menit
+                
+                # Simpan token ke database
+                cursor.execute(
+                    "INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (%s, %s, %s)",
+                    (user['id'], reset_token, expires_at)
+                )
+                conn.commit()
+                
+                # Redirect ke halaman reset dengan token
+                session['reset_token'] = reset_token
+                session['reset_user_id'] = user['id']
+                
+                flash('Token reset password telah dibuat. Silakan buat password baru.', 'success')
+                return redirect(url_for('reset_sandi', token=reset_token))
+                
+            else:
+                flash('Username tidak ditemukan!', 'error')
+                
+        except Exception as e:
+            flash('Terjadi kesalahan saat memproses permintaan.', 'error')
+            print(f"Error in lupa_sandi: {e}")
+        finally:
+            cursor.close()
+            conn.close()
+    
+    return render_template('lupa_sandi.html')
+
+@app.route('/reset-sandi/<token>', methods=['GET', 'POST'])
+def reset_sandi(token):
+    conn = get_db_connection()
+    if not conn:
+        flash('Koneksi database gagal!', 'error')
+        return redirect(url_for('lupa_sandi'))
+        
+    cursor = conn.cursor(dictionary=True)
+    
+    try:
+        # Validasi token
+        cursor.execute("""
+            SELECT prt.*, u.username 
+            FROM password_reset_tokens prt 
+            JOIN users u ON prt.user_id = u.id 
+            WHERE prt.token = %s AND prt.expires_at > NOW() AND prt.used = FALSE
+        """, (token,))
+        
+        token_data = cursor.fetchone()
+        
+        if not token_data:
+            flash('Token tidak valid atau sudah kedaluwarsa!', 'error')
+            cursor.close()
+            conn.close()
+            return redirect(url_for('lupa_sandi'))
+        
+        if request.method == 'POST':
+            password = request.form['password']
+            confirm_password = request.form['confirm_password']
+            
+            if not password or not confirm_password:
+                flash('Password dan konfirmasi password harus diisi!', 'error')
+                return render_template('reset_sandi.html', token=token, username=token_data['username'])
+            
+            if password != confirm_password:
+                flash('Password dan konfirmasi password tidak cocok!', 'error')
+                return render_template('reset_sandi.html', token=token, username=token_data['username'])
+            
+            if len(password) < 6:
+                flash('Password harus minimal 6 karakter!', 'error')
+                return render_template('reset_sandi.html', token=token, username=token_data['username'])
+            
+            # Update password
+            hashed_password = generate_password_hash(password)
+            cursor.execute(
+                "UPDATE users SET password = %s WHERE id = %s",
+                (hashed_password, token_data['user_id'])
+            )
+            
+            # Tandai token sebagai sudah digunakan
+            cursor.execute(
+                "UPDATE password_reset_tokens SET used = TRUE WHERE token = %s",
+                (token,)
+            )
+            
+            conn.commit()
+            
+            # Hapus session reset
+            session.pop('reset_token', None)
+            session.pop('reset_user_id', None)
+            
+            flash('Password berhasil direset! Silakan login dengan password baru.', 'success')
+            return redirect(url_for('login'))
+        
+        cursor.close()
+        conn.close()
+        return render_template('reset_sandi.html', token=token, username=token_data['username'])
+        
+    except Exception as e:
+        flash('Terjadi kesalahan saat mereset password.', 'error')
+        print(f"Error in reset_sandi: {e}")
+        cursor.close()
+        conn.close()
+        return redirect(url_for('lupa_sandi'))
 
 # Routes
 @app.route('/')
@@ -954,11 +1097,8 @@ def absen(event_id):
         conn.close()
         return redirect(url_for('user_dashboard'))
     
-    # Cek apakah sudah absen
-    cursor.execute("SELECT * FROM absensi WHERE event_id = %s AND user_id = %s", (event_id, session['user_id']))
-    sudah_absen = cursor.fetchone()
-    
-    if sudah_absen:
+    # Cek apakah sudah absen - PENAMBAHAN VALIDASI DOUBLE ABSEN
+    if sudah_absen(session['user_id'], event_id):
         flash('Anda sudah absen untuk event ini!', 'warning')
         cursor.close()
         conn.close()
@@ -966,6 +1106,13 @@ def absen(event_id):
     
     if request.method == 'POST':
         absen_type = request.form.get('absen_type')
+        
+        # DOUBLE CHECK: Cek lagi sebelum menyimpan untuk menghindari race condition
+        if sudah_absen(session['user_id'], event_id):
+            flash('Anda sudah absen untuk event ini!', 'warning')
+            cursor.close()
+            conn.close()
+            return redirect(url_for('user_events'))
         
         if absen_type == 'qr_code':
             qr_code_input = request.form['qr_code']
@@ -979,13 +1126,20 @@ def absen(event_id):
             valid_qr = cursor.fetchone()
             
             if valid_qr:
-                # Simpan absensi QR code
-                cursor.execute(
-                    "INSERT INTO absensi (event_id, user_id, qr_code_used, metode_absen) VALUES (%s, %s, %s, 'qr_code')",
-                    (event_id, session['user_id'], qr_code_input)
-                )
-                conn.commit()
-                flash('Absensi dengan QR Code berhasil!', 'success')
+                # DOUBLE CHECK: Cek sekali lagi sebelum insert
+                cursor.execute("SELECT id FROM absensi WHERE user_id = %s AND event_id = %s", (session['user_id'], event_id))
+                existing_absen = cursor.fetchone()
+                
+                if existing_absen:
+                    flash('Anda sudah absen untuk event ini!', 'warning')
+                else:
+                    # Simpan absensi QR code
+                    cursor.execute(
+                        "INSERT INTO absensi (event_id, user_id, qr_code_used, metode_absen) VALUES (%s, %s, %s, 'qr_code')",
+                        (event_id, session['user_id'], qr_code_input)
+                    )
+                    conn.commit()
+                    flash('Absensi dengan QR Code berhasil!', 'success')
             else:
                 flash('QR Code tidak valid atau sudah expired!', 'error')
                 cursor.close()
@@ -1004,13 +1158,20 @@ def absen(event_id):
             valid_token = cursor.fetchone()
             
             if valid_token:
-                # Simpan absensi token
-                cursor.execute(
-                    "INSERT INTO absensi (event_id, user_id, token_used, metode_absen) VALUES (%s, %s, %s, 'token')",
-                    (event_id, session['user_id'], token_input)
-                )
-                conn.commit()
-                flash('Absensi dengan Token berhasil!', 'success')
+                # DOUBLE CHECK: Cek sekali lagi sebelum insert
+                cursor.execute("SELECT id FROM absensi WHERE user_id = %s AND event_id = %s", (session['user_id'], event_id))
+                existing_absen = cursor.fetchone()
+                
+                if existing_absen:
+                    flash('Anda sudah absen untuk event ini!', 'warning')
+                else:
+                    # Simpan absensi token
+                    cursor.execute(
+                        "INSERT INTO absensi (event_id, user_id, token_used, metode_absen) VALUES (%s, %s, %s, 'token')",
+                        (event_id, session['user_id'], token_input)
+                    )
+                    conn.commit()
+                    flash('Absensi dengan Token berhasil!', 'success')
             else:
                 flash('Token tidak valid atau sudah expired!', 'error')
                 cursor.close()
@@ -1036,3 +1197,4 @@ if __name__ == '__main__':
     # Pastikan admin exists saat aplikasi start
     ensure_admin_exists()
     qr_manager.start()
+    app.run(debug=True)

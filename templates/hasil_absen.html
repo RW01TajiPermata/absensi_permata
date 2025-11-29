@@ -68,7 +68,13 @@
                         <td>{{ absen.nama_lengkap }}</td>
                         <td>{{ absen.username }}</td>
                         <td>{{ absen.nomor_telepon or '-' }}</td>
-                        <td>{{ absen.rt or '-' }}</td>
+                        <td>
+                            {% if absen.rt == 'KOTA' %}
+                                RT KOTA(+)
+                            {% else %}
+                                RT {{ absen.rt }}
+                            {% endif %}
+                        </td>
                         <td>{{ absen.waktu_absen.strftime('%d-%m-%Y %H:%M:%S') }}</td>
                         <td>
                             {% if absen.metode_absen == 'qr_code' %}
@@ -80,44 +86,19 @@
                             {% endif %}
                         </td>
                         <td>
-                            <button type="button" class="btn btn-sm btn-outline-danger" 
+                            <button type="button" class="btn btn-sm btn-outline-danger delete-btn" 
                                     data-bs-toggle="modal" 
-                                    data-bs-target="#deleteAbsenModal{{ absen.id }}">
+                                    data-bs-target="#deleteAbsenModal"
+                                    data-absen-id="{{ absen.id }}"
+                                    data-nama="{{ absen.nama_lengkap }}"
+                                    data-username="{{ absen.username }}"
+                                    data-telepon="{{ absen.nomor_telepon or '-' }}"
+                                    data-rt="{{ absen.rt }}"
+                                    data-waktu="{{ absen.waktu_absen.strftime('%d-%m-%Y %H:%M:%S') }}">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </td>
                     </tr>
-
-                    <!-- Modal Konfirmasi Hapus Absensi -->
-                    <div class="modal fade" id="deleteAbsenModal{{ absen.id }}" tabindex="-1">
-                        <div class="modal-dialog">
-                            <div class="modal-content">
-                                <div class="modal-header">
-                                    <h5 class="modal-title">Konfirmasi Hapus Absensi</h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                </div>
-                                <div class="modal-body">
-                                    <p>Apakah Anda yakin ingin menghapus absensi untuk:</p>
-                                    <div class="alert alert-info">
-                                        <strong>{{ absen.nama_lengkap }}</strong><br>
-                                        <small>{{ absen.username }}</small><br>
-                                        <small>Telp: {{ absen.nomor_telepon or '-' }}</small><br>
-                                        <small>RT: {{ absen.rt or '-' }}</small><br>
-                                        <small>{{ absen.waktu_absen.strftime('%d-%m-%Y %H:%M:%S') }}</small>
-                                    </div>
-                                </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                                    <form method="POST" action="{{ url_for('hapus_absen', absen_id=absen.id) }}" style="display: inline;">
-                                        <input type="hidden" name="event_id" value="{{ event.id }}">
-                                        <button type="submit" class="btn btn-danger">
-                                            <i class="fas fa-trash"></i> Ya, Hapus
-                                        </button>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                     {% endfor %}
                 </tbody>
             </table>
@@ -165,13 +146,52 @@
     </div>
 </div>
 
-<!-- Modal Konfirmasi Hapus Semua Absensi -->
-<div class="modal fade" id="deleteAllAbsenModal" tabindex="-1">
+<!-- Modal Konfirmasi Hapus Absensi (Satu Modal untuk Semua) -->
+<div class="modal fade" id="deleteAbsenModal" tabindex="-1" aria-labelledby="deleteAbsenModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Konfirmasi Hapus Semua Absensi</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <h5 class="modal-title" id="deleteAbsenModalLabel">Konfirmasi Hapus Absensi</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Apakah Anda yakin ingin menghapus absensi untuk:</p>
+                <div class="alert alert-info">
+                    <strong id="modal-nama"></strong><br>
+                    <small id="modal-username"></small><br>
+                    <small>Telp: <span id="modal-telepon"></span></small><br>
+                    <small>RT: 
+                        <span id="modal-rt">
+                            {% if absen.rt == 'KOTA' %}
+                                RT KOTA(+)
+                            {% else %}
+                                RT {{ absen.rt }}
+                            {% endif %}
+                        </span>
+                    </small><br>
+                    <small id="modal-waktu"></small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <form method="POST" action="" id="deleteAbsenForm" style="display: inline;">
+                    <input type="hidden" name="event_id" value="{{ event.id }}">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash"></i> Ya, Hapus
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Konfirmasi Hapus Semua Absensi -->
+<div class="modal fade" id="deleteAllAbsenModal" tabindex="-1" aria-labelledby="deleteAllAbsenModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteAllAbsenModalLabel">Konfirmasi Hapus Semua Absensi</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <p>Apakah Anda yakin ingin menghapus <strong>SEMUA</strong> data absensi untuk event:</p>
@@ -194,4 +214,135 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle modal untuk hapus absensi per user
+    const deleteButtons = document.querySelectorAll('.delete-btn');
+    const deleteAbsenForm = document.getElementById('deleteAbsenForm');
+    const modalNama = document.getElementById('modal-nama');
+    const modalUsername = document.getElementById('modal-username');
+    const modalTelepon = document.getElementById('modal-telepon');
+    const modalRt = document.getElementById('modal-rt');
+    const modalWaktu = document.getElementById('modal-waktu');
+
+    deleteButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const absenId = this.getAttribute('data-absen-id');
+            const nama = this.getAttribute('data-nama');
+            const username = this.getAttribute('data-username');
+            const telepon = this.getAttribute('data-telepon');
+            const rt = this.getAttribute('data-rt');
+            const waktu = this.getAttribute('data-waktu');
+
+            // Format RT untuk display
+            let rtDisplay = rt;
+            if (rt === 'KOTA') {
+                rtDisplay = 'RT KOTA(+)';
+            } else {
+                rtDisplay = 'RT ' + rt;
+            }
+
+            // Set data ke modal
+            modalNama.textContent = nama;
+            modalUsername.textContent = username;
+            modalTelepon.textContent = telepon;
+            modalRt.textContent = rtDisplay;
+            modalWaktu.textContent = waktu;
+
+            // Set action form
+            deleteAbsenForm.action = "{{ url_for('hapus_absen', absen_id=0) }}".replace('0', absenId);
+        });
+    });
+
+    // Handle modal hide event untuk reset state
+    const deleteAbsenModal = document.getElementById('deleteAbsenModal');
+    if (deleteAbsenModal) {
+        deleteAbsenModal.addEventListener('hidden.bs.modal', function () {
+            // Reset form action untuk menghindari konflik
+            deleteAbsenForm.action = "";
+        });
+    }
+
+    // Smooth animation untuk modal
+    const modals = document.querySelectorAll('.modal');
+    modals.forEach(modal => {
+        modal.addEventListener('show.bs.modal', function () {
+            this.style.display = 'block';
+            setTimeout(() => {
+                this.classList.add('show');
+            }, 10);
+        });
+
+        modal.addEventListener('hide.bs.modal', function () {
+            this.classList.remove('show');
+            setTimeout(() => {
+                this.style.display = 'none';
+            }, 300);
+        });
+    });
+});
+</script>
+
+<style>
+/* Smooth transitions untuk modal */
+.modal {
+    transition: opacity 0.3s ease;
+}
+
+.modal.fade .modal-dialog {
+    transition: transform 0.3s ease-out;
+    transform: translate(0, -50px);
+}
+
+.modal.show .modal-dialog {
+    transform: translate(0, 0);
+}
+
+/* Hover effect untuk tombol hapus */
+.delete-btn {
+    transition: all 0.2s ease;
+    border: 1px solid #dc3545;
+}
+
+.delete-btn:hover {
+    background-color: #dc3545;
+    color: white;
+    transform: scale(1.05);
+}
+
+/* Styling untuk modal */
+.modal-content {
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+
+.modal-header {
+    background: linear-gradient(135deg, #dc3545, #c82333);
+    color: white;
+    border-radius: 10px 10px 0 0;
+}
+
+.modal-header .btn-close {
+    filter: invert(1);
+}
+
+/* Animasi untuk tabel */
+.table tbody tr {
+    transition: background-color 0.2s ease;
+}
+
+.table tbody tr:hover {
+    background-color: rgba(0,0,0,0.02);
+}
+
+/* Loading state untuk tombol */
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+</style>
 {% endblock %}

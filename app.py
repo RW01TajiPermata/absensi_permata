@@ -12,9 +12,14 @@ import re
 import csv
 import string
 import random
+# Hapus import pytz, gunakan datetime biasa dengan penyesuaian
 
 app = Flask(__name__)
 app.secret_key = 'absensi-permata-secret-key-2024'
+
+# KONFIGURASI TIMEZONE TANPA PYTZ
+# Untuk Indonesia (UTC+7), kita tambahkan 7 jam ke waktu UTC
+TIMEZONE_OFFSET = datetime.timedelta(hours=7)
 
 # Konfigurasi database
 def get_db_connection():
@@ -31,6 +36,49 @@ def get_db_connection():
     except mysql.connector.Error as err:
         print(f"Database connection error: {err}")
         return None
+
+# FUNGSI WAKTU YANG DIPERBAIKI TANPA PYTZ
+def get_current_time():
+    """Mendapatkan waktu saat ini dengan penyesuaian timezone Indonesia"""
+    utc_now = datetime.datetime.utcnow()
+    return utc_now + TIMEZONE_OFFSET
+
+def get_current_date():
+    """Mendapatkan tanggal saat ini dengan timezone Indonesia"""
+    return get_current_time().date()
+
+def format_datetime_for_display(dt):
+    """Format datetime untuk display"""
+    if isinstance(dt, str):
+        try:
+            dt = datetime.datetime.fromisoformat(dt.replace('Z', '+00:00'))
+        except:
+            # Fallback untuk format lain
+            dt = datetime.datetime.strptime(dt, '%Y-%m-%d %H:%M:%S')
+    
+    # Jika datetime naive, anggap sudah dalam waktu Indonesia
+    if dt.tzinfo is None:
+        return dt.strftime('%d-%m-%Y %H:%M:%S')
+    
+    # Jika ada timezone, convert ke waktu Indonesia
+    return dt.astimezone(datetime.timezone(TIMEZONE_OFFSET)).strftime('%d-%m-%Y %H:%M:%S')
+
+def format_datetime_for_db(dt):
+    """Format datetime untuk database"""
+    if isinstance(dt, str):
+        try:
+            dt = datetime.datetime.fromisoformat(dt.replace('Z', '+00:00'))
+        except:
+            dt = datetime.datetime.strptime(dt, '%Y-%m-%d %H:%M:%S')
+    
+    # Untuk database, kita simpan sebagai UTC
+    if dt.tzinfo is None:
+        # Anggap sudah WIB, convert ke UTC
+        dt_utc = dt - TIMEZONE_OFFSET
+    else:
+        dt_utc = dt.astimezone(datetime.timezone.utc)
+    
+    return dt_utc.strftime('%Y-%m-%d %H:%M:%S')
 
 # Simple QR Manager dengan interval 2 menit
 class QRCodeManager:
@@ -110,6 +158,38 @@ def sudah_absen(user_id, event_id):
         cursor.close()
         conn.close()
 
+# FUNGSI BARU: Validasi waktu absensi
+def validate_absen_time(event_tanggal, event_waktu, toleransi_menit=30):
+    """
+    Validasi apakah waktu absensi masih dalam batas toleransi
+    event_tanggal: string 'YYYY-MM-DD'
+    event_waktu: string 'HH:MM:SS'
+    toleransi_menit: batas toleransi sebelum dan sesudah event
+    """
+    try:
+        # Gabungkan tanggal dan waktu event
+        event_datetime_str = f"{event_tanggal} {event_waktu}"
+        event_datetime = datetime.datetime.strptime(event_datetime_str, '%Y-%m-%d %H:%M:%S')
+        
+        # Waktu saat ini (dalam WIB)
+        current_time = get_current_time()
+        
+        # Hitung selisih waktu
+        time_diff = current_time - event_datetime
+        time_diff_minutes = abs(time_diff.total_seconds() / 60)
+        
+        print(f"🔍 Validasi Waktu:")
+        print(f"   Event: {event_datetime}")
+        print(f"   Sekarang: {current_time}")
+        print(f"   Selisih: {time_diff_minutes:.1f} menit")
+        print(f"   Toleransi: {toleransi_menit} menit")
+        
+        return time_diff_minutes <= toleransi_menit
+        
+    except Exception as e:
+        print(f"❌ Error validasi waktu: {e}")
+        return False
+
 # Routes untuk Lupa Sandi
 @app.route('/lupa-sandi', methods=['GET', 'POST'])
 def lupa_sandi():
@@ -131,7 +211,7 @@ def lupa_sandi():
             if user:
                 # Generate reset token
                 reset_token = secrets.token_urlsafe(32)
-                expires_at = datetime.datetime.now() + datetime.timedelta(minutes=30)  # Token berlaku 30 menit
+                expires_at = get_current_time() + datetime.timedelta(minutes=30)  # Token berlaku 30 menit
                 
                 # Simpan token ke database
                 cursor.execute(
@@ -174,8 +254,8 @@ def reset_sandi(token):
             SELECT prt.*, u.username 
             FROM password_reset_tokens prt 
             JOIN users u ON prt.user_id = u.id 
-            WHERE prt.token = %s AND prt.expires_at > NOW() AND prt.used = FALSE
-        """, (token,))
+            WHERE prt.token = %s AND prt.expires_at > %s AND prt.used = FALSE
+        """, (token, get_current_time()))
         
         token_data = cursor.fetchone()
         
@@ -440,20 +520,22 @@ def admin_dashboard():
         cursor.execute("SELECT COUNT(*) as total_users FROM users WHERE role = 'user'")
         total_users = cursor.fetchone()['total_users']
         
+        # PERBAIKAN: Gunakan waktu Indonesia untuk query hari ini
+        today = get_current_date()
         cursor.execute("""
             SELECT COUNT(DISTINCT a.user_id) as total_absen_hari_ini 
             FROM absensi a 
             JOIN events e ON a.event_id = e.id 
-            WHERE DATE(a.waktu_absen) = CURDATE() AND e.created_by = %s
-        """, (session['user_id'],))
+            WHERE DATE(a.waktu_absen) = %s AND e.created_by = %s
+        """, (today, session['user_id'],))
         result = cursor.fetchone()
         total_absen_hari_ini = result['total_absen_hari_ini'] if result else 0
         
         cursor.execute("""
             SELECT * FROM events 
-            WHERE tanggal_event = CURDATE() AND created_by = %s 
+            WHERE tanggal_event = %s AND created_by = %s 
             ORDER BY waktu_event
-        """, (session['user_id'],))
+        """, (today, session['user_id'],))
         events_hari_ini = cursor.fetchall()
         
     except Exception as e:
@@ -674,10 +756,10 @@ def generate_qr_code(event_id):
     cursor.execute("""
         SELECT qr_code_data, expires_at
         FROM qr_codes 
-        WHERE event_id = %s AND expires_at > NOW() 
+        WHERE event_id = %s AND expires_at > %s 
         ORDER BY created_at DESC 
         LIMIT 1
-    """, (event_id,))
+    """, (event_id, get_current_time()))
     
     qr_code = cursor.fetchone()
     
@@ -686,14 +768,13 @@ def generate_qr_code(event_id):
         expires_at = qr_code['expires_at']
         
         # Hitung waktu tersisa sampai QR code expired
-        now = datetime.datetime.now()
-        expires_dt = expires_at
-        time_remaining = expires_dt - now
+        now = get_current_time()
+        time_remaining = expires_at - now
         seconds_remaining = max(0, int(time_remaining.total_seconds()))
     else:
         # Generate new QR code jika tidak ada yang aktif
         qr_data = secrets.token_urlsafe(32)
-        expires_at = datetime.datetime.now() + datetime.timedelta(seconds=120)  # 2 menit
+        expires_at = get_current_time() + datetime.timedelta(seconds=120)  # 2 menit
         
         try:
             cursor.execute(
@@ -757,10 +838,10 @@ def generate_token_page(event_id):
     cursor.execute("""
         SELECT token_data, expires_at
         FROM tokens 
-        WHERE event_id = %s AND expires_at > NOW() 
+        WHERE event_id = %s AND expires_at > %s 
         ORDER BY created_at DESC 
         LIMIT 1
-    """, (event_id,))
+    """, (event_id, get_current_time()))
     
     token = cursor.fetchone()
     
@@ -769,14 +850,13 @@ def generate_token_page(event_id):
         expires_at = token['expires_at']
         
         # Hitung waktu tersisa sampai token expired
-        now = datetime.datetime.now()
-        expires_dt = expires_at
-        time_remaining = expires_dt - now
+        now = get_current_time()
+        time_remaining = expires_at - now
         seconds_remaining = max(0, int(time_remaining.total_seconds()))
     else:
         # Generate new token jika tidak ada yang aktif
         token_data = generate_token(6)
-        expires_at = datetime.datetime.now() + datetime.timedelta(minutes=10)  # Token berlaku 10 menit
+        expires_at = get_current_time() + datetime.timedelta(minutes=10)  # Token berlaku 10 menit
         
         try:
             cursor.execute(
@@ -843,9 +923,10 @@ def absen_manual(event_id):
         else:
             # Simpan absensi manual
             try:
+                current_time = get_current_time()
                 cursor.execute(
-                    "INSERT INTO absensi (event_id, user_id, metode_absen) VALUES (%s, %s, 'manual')",
-                    (event_id, user_id)
+                    "INSERT INTO absensi (event_id, user_id, metode_absen, waktu_absen) VALUES (%s, %s, 'manual', %s)",
+                    (event_id, user_id, current_time)
                 )
                 conn.commit()
                 flash('Absensi manual berhasil!', 'success')
@@ -970,7 +1051,7 @@ def download_absen(event_id):
             absen['username'],
             absen['nomor_telepon'] or '-',
             absen['rt'] or '-',
-            absen['waktu_absen'].strftime('%d-%m-%Y %H:%M:%S'),
+            format_datetime_for_display(absen['waktu_absen']),
             absen['metode_absen'].upper()
         ])
     
@@ -988,7 +1069,7 @@ def download_absen(event_id):
         writer.writerow([f'{metode.upper()}:', count])
     
     writer.writerow([])
-    writer.writerow(['Downloaded pada:', datetime.datetime.now().strftime('%d-%m-%Y %H:%M:%S')])
+    writer.writerow(['Downloaded pada:', format_datetime_for_display(get_current_time())])
     
     output.seek(0)
     
@@ -996,7 +1077,7 @@ def download_absen(event_id):
     conn.close()
     
     # Create filename dengan format yang baik
-    filename = f"absen_{event['nama_event'].replace(' ', '_')}_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.csv"
+    filename = f"absen_{event['nama_event'].replace(' ', '_')}_{get_current_time().strftime('%Y%m%d_%H%M')}.csv"
     
     return send_file(
         BytesIO(output.getvalue().encode('utf-8-sig')),  # utf-8-sig untuk Excel compatibility
@@ -1024,9 +1105,9 @@ def user_dashboard():
     cursor.execute("""
         SELECT e.* 
         FROM events e 
-        WHERE e.tanggal_event >= CURDATE() 
+        WHERE e.tanggal_event >= %s 
         ORDER BY e.tanggal_event, e.waktu_event
-    """)
+    """, (get_current_date(),))
     events_akan_datang = cursor.fetchall()
     
     # Riwayat absensi user
@@ -1064,9 +1145,9 @@ def user_events():
                CASE WHEN a.id IS NOT NULL THEN 1 ELSE 0 END as sudah_absen
         FROM events e 
         LEFT JOIN absensi a ON e.id = a.event_id AND a.user_id = %s
-        WHERE e.tanggal_event >= CURDATE() 
+        WHERE e.tanggal_event >= %s 
         ORDER BY e.tanggal_event, e.waktu_event
-    """, (session['user_id'],))
+    """, (session['user_id'], get_current_date()))
     
     events = cursor.fetchall()
     
@@ -1075,6 +1156,7 @@ def user_events():
     
     return render_template('list_event.html', events=events, is_admin=False)
 
+# ROUTE ABSEN YANG DIPERBAIKI DENGAN VALIDASI WAKTU
 @app.route('/absen/<int:event_id>', methods=['GET', 'POST'])
 def absen(event_id):
     if 'user_id' not in session:
@@ -1107,6 +1189,13 @@ def absen(event_id):
     if request.method == 'POST':
         absen_type = request.form.get('absen_type')
         
+        # VALIDASI WAKTU ABSENSI - PERBAIKAN UTAMA
+        if not validate_absen_time(event['tanggal_event'], event['waktu_event']):
+            flash('❌ Absensi tidak dapat dilakukan di luar waktu event! Silakan hubungi admin.', 'error')
+            cursor.close()
+            conn.close()
+            return redirect(url_for('user_events'))
+        
         # DOUBLE CHECK: Cek lagi sebelum menyimpan untuk menghindari race condition
         if sudah_absen(session['user_id'], event_id):
             flash('Anda sudah absen untuk event ini!', 'warning')
@@ -1120,8 +1209,8 @@ def absen(event_id):
             # Validasi QR code
             cursor.execute("""
                 SELECT * FROM qr_codes 
-                WHERE event_id = %s AND qr_code_data = %s AND expires_at > NOW()
-            """, (event_id, qr_code_input))
+                WHERE event_id = %s AND qr_code_data = %s AND expires_at > %s
+            """, (event_id, qr_code_input, get_current_time()))
             
             valid_qr = cursor.fetchone()
             
@@ -1133,13 +1222,14 @@ def absen(event_id):
                 if existing_absen:
                     flash('Anda sudah absen untuk event ini!', 'warning')
                 else:
-                    # Simpan absensi QR code
+                    # Simpan absensi QR code dengan waktu yang akurat
+                    current_time = get_current_time()
                     cursor.execute(
-                        "INSERT INTO absensi (event_id, user_id, qr_code_used, metode_absen) VALUES (%s, %s, %s, 'qr_code')",
-                        (event_id, session['user_id'], qr_code_input)
+                        "INSERT INTO absensi (event_id, user_id, qr_code_used, metode_absen, waktu_absen) VALUES (%s, %s, %s, 'qr_code', %s)",
+                        (event_id, session['user_id'], qr_code_input, current_time)
                     )
                     conn.commit()
-                    flash('Absensi dengan QR Code berhasil!', 'success')
+                    flash('✅ Absensi dengan QR Code berhasil!', 'success')
             else:
                 flash('QR Code tidak valid atau sudah expired!', 'error')
                 cursor.close()
@@ -1152,8 +1242,8 @@ def absen(event_id):
             # Validasi token
             cursor.execute("""
                 SELECT * FROM tokens 
-                WHERE event_id = %s AND token_data = %s AND expires_at > NOW()
-            """, (event_id, token_input))
+                WHERE event_id = %s AND token_data = %s AND expires_at > %s
+            """, (event_id, token_input, get_current_time()))
             
             valid_token = cursor.fetchone()
             
@@ -1165,13 +1255,14 @@ def absen(event_id):
                 if existing_absen:
                     flash('Anda sudah absen untuk event ini!', 'warning')
                 else:
-                    # Simpan absensi token
+                    # Simpan absensi token dengan waktu yang akurat
+                    current_time = get_current_time()
                     cursor.execute(
-                        "INSERT INTO absensi (event_id, user_id, token_used, metode_absen) VALUES (%s, %s, %s, 'token')",
-                        (event_id, session['user_id'], token_input)
+                        "INSERT INTO absensi (event_id, user_id, token_used, metode_absen, waktu_absen) VALUES (%s, %s, %s, 'token', %s)",
+                        (event_id, session['user_id'], token_input, current_time)
                     )
                     conn.commit()
-                    flash('Absensi dengan Token berhasil!', 'success')
+                    flash('✅ Absensi dengan Token berhasil!', 'success')
             else:
                 flash('Token tidak valid atau sudah expired!', 'error')
                 cursor.close()
@@ -1193,8 +1284,26 @@ def absen(event_id):
     
     return render_template('absen.html', event=event, is_admin=False)
 
+# ROUTE BARU: Endpoint untuk mendapatkan waktu server
+@app.route('/api/server-time')
+def get_server_time():
+    """Endpoint untuk mendapatkan waktu server yang akurat"""
+    server_time = get_current_time()
+    return jsonify({
+        'server_time': server_time.isoformat(),
+        'server_time_display': format_datetime_for_display(server_time),
+        'timezone': 'Asia/Jakarta (UTC+7)'
+    })
+
 if __name__ == '__main__':
     # Pastikan admin exists saat aplikasi start
     ensure_admin_exists()
     qr_manager.start()
-    app.run(debug=True)
+    
+    print("=" * 50)
+    print("🚀 SERVER ABSENSI PERMATA DIMULAI")
+    print(f"⏰ Waktu Server: {format_datetime_for_display(get_current_time())}")
+    print(f"🌏 Timezone: Asia/Jakarta (UTC+7)")
+    print("=" * 50)
+    
+    app.run(debug=True, host='0.0.0.0', port=5000)

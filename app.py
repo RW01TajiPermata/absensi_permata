@@ -158,37 +158,50 @@ def sudah_absen(user_id, event_id):
         cursor.close()
         conn.close()
 
-# FUNGSI BARU: Validasi waktu absensi
-def validate_absen_time(event_tanggal, event_waktu, toleransi_menit=30):
+# FUNGSI BARU: Validasi waktu absensi - DIHAPUS BATASAN WAKTU
+# Hanya validasi QR Code/Token saja, tidak ada batasan waktu event
+def validate_absen_access(event_id, absen_type, input_data):
     """
-    Validasi apakah waktu absensi masih dalam batas toleransi
-    event_tanggal: string 'YYYY-MM-DD'
-    event_waktu: string 'HH:MM:SS'
-    toleransi_menit: batas toleransi sebelum dan sesudah event
+    Validasi apakah QR Code/Token masih valid
+    Tidak ada batasan waktu event, hanya cek validitas QR/Token
     """
+    conn = get_db_connection()
+    if not conn:
+        return False
+        
+    cursor = conn.cursor(dictionary=True)
+    
     try:
-        # Gabungkan tanggal dan waktu event
-        event_datetime_str = f"{event_tanggal} {event_waktu}"
-        event_datetime = datetime.datetime.strptime(event_datetime_str, '%Y-%m-%d %H:%M:%S')
-        
-        # Waktu saat ini (dalam WIB)
-        current_time = get_current_time()
-        
-        # Hitung selisih waktu
-        time_diff = current_time - event_datetime
-        time_diff_minutes = abs(time_diff.total_seconds() / 60)
-        
-        print(f"🔍 Validasi Waktu:")
-        print(f"   Event: {event_datetime}")
-        print(f"   Sekarang: {current_time}")
-        print(f"   Selisih: {time_diff_minutes:.1f} menit")
-        print(f"   Toleransi: {toleransi_menit} menit")
-        
-        return time_diff_minutes <= toleransi_menit
+        if absen_type == 'qr_code':
+            # Cek QR Code
+            cursor.execute("""
+                SELECT * FROM qr_codes 
+                WHERE event_id = %s AND qr_code_data = %s AND expires_at > %s
+            """, (event_id, input_data, get_current_time()))
+            
+            valid = cursor.fetchone() is not None
+            
+        elif absen_type == 'token':
+            # Cek Token
+            cursor.execute("""
+                SELECT * FROM tokens 
+                WHERE event_id = %s AND token_data = %s AND expires_at > %s
+            """, (event_id, input_data, get_current_time()))
+            
+            valid = cursor.fetchone() is not None
+            
+        else:
+            valid = False
+            
+        print(f"🔍 Validasi {absen_type}: {valid}")
+        return valid
         
     except Exception as e:
-        print(f"❌ Error validasi waktu: {e}")
+        print(f"❌ Error validasi {absen_type}: {e}")
         return False
+    finally:
+        cursor.close()
+        conn.close()
 
 # Routes untuk Lupa Sandi
 @app.route('/lupa-sandi', methods=['GET', 'POST'])
@@ -443,7 +456,7 @@ def register():
             nomor_telepon = nomor_telepon_clean
         
         # Validasi RT - hanya 4 pilihan yang diperbolehkan
-        valid_rt = ['001', '002', '003', '004']
+        valid_rt = ['001', '002', '003', 'KOTA']
         if not rt:
             flash('RT harus dipilih!', 'error')
             return render_template('register.html')
@@ -774,7 +787,7 @@ def generate_qr_code(event_id):
     else:
         # Generate new QR code jika tidak ada yang aktif
         qr_data = secrets.token_urlsafe(32)
-        expires_at = get_current_time() + datetime.timedelta(seconds=120)  # 2 menit
+        expires_at = get_current_time() + datetime.timedelta(minutes=10)  # Diperpanjang jadi 10 menit
         
         try:
             cursor.execute(
@@ -782,10 +795,10 @@ def generate_qr_code(event_id):
                 (event_id, qr_data, expires_at)
             )
             conn.commit()
-            seconds_remaining = 120  # 2 menit
+            seconds_remaining = 600  # 10 menit
         except Exception as e:
             print(f"Error inserting QR code: {e}")
-            seconds_remaining = 120
+            seconds_remaining = 600
     
     # Generate QR code image
     qr = qrcode.QRCode(
@@ -1156,7 +1169,7 @@ def user_events():
     
     return render_template('list_event.html', events=events, is_admin=False)
 
-# ROUTE ABSEN YANG DIPERBAIKI DENGAN VALIDASI WAKTU
+# ROUTE ABSEN YANG DIPERBAIKI - TANPA BATASAN WAKTU EVENT
 @app.route('/absen/<int:event_id>', methods=['GET', 'POST'])
 def absen(event_id):
     if 'user_id' not in session:
@@ -1189,12 +1202,7 @@ def absen(event_id):
     if request.method == 'POST':
         absen_type = request.form.get('absen_type')
         
-        # VALIDASI WAKTU ABSENSI - PERBAIKAN UTAMA
-        if not validate_absen_time(event['tanggal_event'], event['waktu_event']):
-            flash('❌ Absensi tidak dapat dilakukan di luar waktu event! Silakan hubungi admin.', 'error')
-            cursor.close()
-            conn.close()
-            return redirect(url_for('user_events'))
+        # TIDAK ADA VALIDASI WAKTU EVENT LAGI - hanya validasi QR Code/Token saja
         
         # DOUBLE CHECK: Cek lagi sebelum menyimpan untuk menghindari race condition
         if sudah_absen(session['user_id'], event_id):
@@ -1206,68 +1214,54 @@ def absen(event_id):
         if absen_type == 'qr_code':
             qr_code_input = request.form['qr_code']
             
-            # Validasi QR code
-            cursor.execute("""
-                SELECT * FROM qr_codes 
-                WHERE event_id = %s AND qr_code_data = %s AND expires_at > %s
-            """, (event_id, qr_code_input, get_current_time()))
-            
-            valid_qr = cursor.fetchone()
-            
-            if valid_qr:
-                # DOUBLE CHECK: Cek sekali lagi sebelum insert
-                cursor.execute("SELECT id FROM absensi WHERE user_id = %s AND event_id = %s", (session['user_id'], event_id))
-                existing_absen = cursor.fetchone()
-                
-                if existing_absen:
-                    flash('Anda sudah absen untuk event ini!', 'warning')
-                else:
-                    # Simpan absensi QR code dengan waktu yang akurat
-                    current_time = get_current_time()
-                    cursor.execute(
-                        "INSERT INTO absensi (event_id, user_id, qr_code_used, metode_absen, waktu_absen) VALUES (%s, %s, %s, 'qr_code', %s)",
-                        (event_id, session['user_id'], qr_code_input, current_time)
-                    )
-                    conn.commit()
-                    flash('✅ Absensi dengan QR Code berhasil!', 'success')
-            else:
+            # Validasi QR code menggunakan fungsi baru
+            if not validate_absen_access(event_id, 'qr_code', qr_code_input):
                 flash('QR Code tidak valid atau sudah expired!', 'error')
                 cursor.close()
                 conn.close()
                 return render_template('absen.html', event=event, is_admin=False)
+            
+            # DOUBLE CHECK: Cek sekali lagi sebelum insert
+            cursor.execute("SELECT id FROM absensi WHERE user_id = %s AND event_id = %s", (session['user_id'], event_id))
+            existing_absen = cursor.fetchone()
+            
+            if existing_absen:
+                flash('Anda sudah absen untuk event ini!', 'warning')
+            else:
+                # Simpan absensi QR code dengan waktu yang akurat
+                current_time = get_current_time()
+                cursor.execute(
+                    "INSERT INTO absensi (event_id, user_id, qr_code_used, metode_absen, waktu_absen) VALUES (%s, %s, %s, 'qr_code', %s)",
+                    (event_id, session['user_id'], qr_code_input, current_time)
+                )
+                conn.commit()
+                flash('✅ Absensi dengan QR Code berhasil!', 'success')
                 
         elif absen_type == 'token':
             token_input = request.form['token']
             
-            # Validasi token
-            cursor.execute("""
-                SELECT * FROM tokens 
-                WHERE event_id = %s AND token_data = %s AND expires_at > %s
-            """, (event_id, token_input, get_current_time()))
-            
-            valid_token = cursor.fetchone()
-            
-            if valid_token:
-                # DOUBLE CHECK: Cek sekali lagi sebelum insert
-                cursor.execute("SELECT id FROM absensi WHERE user_id = %s AND event_id = %s", (session['user_id'], event_id))
-                existing_absen = cursor.fetchone()
-                
-                if existing_absen:
-                    flash('Anda sudah absen untuk event ini!', 'warning')
-                else:
-                    # Simpan absensi token dengan waktu yang akurat
-                    current_time = get_current_time()
-                    cursor.execute(
-                        "INSERT INTO absensi (event_id, user_id, token_used, metode_absen, waktu_absen) VALUES (%s, %s, %s, 'token', %s)",
-                        (event_id, session['user_id'], token_input, current_time)
-                    )
-                    conn.commit()
-                    flash('✅ Absensi dengan Token berhasil!', 'success')
-            else:
+            # Validasi token menggunakan fungsi baru
+            if not validate_absen_access(event_id, 'token', token_input):
                 flash('Token tidak valid atau sudah expired!', 'error')
                 cursor.close()
                 conn.close()
                 return render_template('absen.html', event=event, is_admin=False)
+            
+            # DOUBLE CHECK: Cek sekali lagi sebelum insert
+            cursor.execute("SELECT id FROM absensi WHERE user_id = %s AND event_id = %s", (session['user_id'], event_id))
+            existing_absen = cursor.fetchone()
+            
+            if existing_absen:
+                flash('Anda sudah absen untuk event ini!', 'warning')
+            else:
+                # Simpan absensi token dengan waktu yang akurat
+                current_time = get_current_time()
+                cursor.execute(
+                    "INSERT INTO absensi (event_id, user_id, token_used, metode_absen, waktu_absen) VALUES (%s, %s, %s, 'token', %s)",
+                    (event_id, session['user_id'], token_input, current_time)
+                )
+                conn.commit()
+                flash('✅ Absensi dengan Token berhasil!', 'success')
         
         cursor.close()
         conn.close()
@@ -1304,6 +1298,9 @@ if __name__ == '__main__':
     print("🚀 SERVER ABSENSI PERMATA DIMULAI")
     print(f"⏰ Waktu Server: {format_datetime_for_display(get_current_time())}")
     print(f"🌏 Timezone: Asia/Jakarta (UTC+7)")
+    print("=" * 50)
+    print("✅ FITUR BARU: Absensi bisa dilakukan kapan saja selama QR Code/Token masih aktif!")
+    print("❌ TIDAK ADA BATASAN WAKTU EVENT LAGI")
     print("=" * 50)
     
     app.run(debug=True, host='0.0.0.0', port=5000)

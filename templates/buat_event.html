@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="text-center">Buat Event Baru</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="nama_event" class="form-label">Nama Event</label>
+                        <input type="text" class="form-control" id="nama_event" name="nama_event" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="deskripsi" class="form-label">Deskripsi Event</label>
+                        <textarea class="form-control" id="deskripsi" name="deskripsi" rows="3" required></textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="tanggal_event" class="form-label">Tanggal Event</label>
+                            <input type="date" class="form-control" id="tanggal_event" name="tanggal_event" required>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="waktu_event" class="form-label">Waktu Event</label>
+                            <input type="time" class="form-control" id="waktu_event" name="waktu_event" required>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="lokasi" class="form-label">Lokasi</label>
+                        <input type="text" class="form-control" id="lokasi" name="lokasi" required>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">Buat Event</button>
+                        <a href="{{ url_for('admin_events') }}" class="btn btn-outline-secondary">Kembali</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Set minimum date to today
+    document.getElementById('tanggal_event').min = new Date().toISOString().split('T')[0];
+</script>
+{% endblock %}

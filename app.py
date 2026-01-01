@@ -174,7 +174,7 @@ def validate_absen_access(event_id, absen_type, input_data):
     try:
         if absen_type == 'qr_code':
             # Cek QR Code
-            cursor.execute("""
+            cursor.execute(""" 
                 SELECT * FROM qr_codes 
                 WHERE event_id = %s AND qr_code_data = %s AND expires_at > %s
             """, (event_id, input_data, get_current_time()))
@@ -183,7 +183,7 @@ def validate_absen_access(event_id, absen_type, input_data):
             
         elif absen_type == 'token':
             # Cek Token
-            cursor.execute("""
+            cursor.execute(""" 
                 SELECT * FROM tokens 
                 WHERE event_id = %s AND token_data = %s AND expires_at > %s
             """, (event_id, input_data, get_current_time()))
@@ -263,7 +263,7 @@ def reset_sandi(token):
     
     try:
         # Validasi token
-        cursor.execute("""
+        cursor.execute(""" 
             SELECT prt.*, u.username 
             FROM password_reset_tokens prt 
             JOIN users u ON prt.user_id = u.id 
@@ -535,7 +535,7 @@ def admin_dashboard():
         
         # PERBAIKAN: Gunakan waktu Indonesia untuk query hari ini
         today = get_current_date()
-        cursor.execute("""
+        cursor.execute(""" 
             SELECT COUNT(DISTINCT a.user_id) as total_absen_hari_ini 
             FROM absensi a 
             JOIN events e ON a.event_id = e.id 
@@ -544,7 +544,7 @@ def admin_dashboard():
         result = cursor.fetchone()
         total_absen_hari_ini = result['total_absen_hari_ini'] if result else 0
         
-        cursor.execute("""
+        cursor.execute(""" 
             SELECT * FROM events 
             WHERE tanggal_event = %s AND created_by = %s 
             ORDER BY waktu_event
@@ -566,6 +566,149 @@ def admin_dashboard():
                          total_users=total_users,
                          total_absen_hari_ini=total_absen_hari_ini,
                          events_hari_ini=events_hari_ini)
+
+# ROUTE BARU: Kelola Anggota
+@app.route('/admin/kelola-anggota')
+def kelola_anggota():
+    if 'user_id' not in session or session['role'] != 'admin':
+        return redirect(url_for('login'))
+    
+    # Parameter pencarian
+    search_query = request.args.get('search', '')
+    rt_filter = request.args.get('rt', '')
+    page = int(request.args.get('page', 1))
+    per_page = 20  # Jumlah data per halaman
+    
+    conn = get_db_connection()
+    if not conn:
+        flash('Koneksi database gagal!', 'error')
+        return render_template('kelola_anggota.html', 
+                             anggota_list=[], 
+                             search_query=search_query,
+                             rt_filter=rt_filter,
+                             page=page,
+                             total_anggota=0,
+                             total_admin=0,
+                             total_user=0,
+                             total_rt_001=0,
+                             total_pages=0)
+    
+    cursor = conn.cursor(dictionary=True)
+    
+    try:
+        # Build query dengan filter
+        query = "SELECT * FROM users WHERE 1=1"
+        params = []
+        
+        if search_query:
+            query += " AND (nama_lengkap LIKE %s OR username LIKE %s OR nomor_telepon LIKE %s)"
+            params.extend([f'%{search_query}%', f'%{search_query}%', f'%{search_query}%'])
+        
+        if rt_filter:
+            query += " AND rt = %s"
+            params.append(rt_filter)
+        
+        # Hitung total data untuk pagination
+        count_query = query.replace("SELECT *", "SELECT COUNT(*) as total")
+        cursor.execute(count_query, params)
+        total_count = cursor.fetchone()['total']
+        total_pages = (total_count + per_page - 1) // per_page  # Ceiling division
+        
+        # Query data dengan pagination
+        query += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
+        params.extend([per_page, (page - 1) * per_page])
+        
+        cursor.execute(query, params)
+        anggota_list = cursor.fetchall()
+        
+        # Hitung statistik
+        cursor.execute("SELECT COUNT(*) as total_anggota FROM users")
+        total_anggota = cursor.fetchone()['total_anggota']
+        
+        cursor.execute("SELECT COUNT(*) as total_admin FROM users WHERE role = 'admin'")
+        total_admin = cursor.fetchone()['total_admin']
+        
+        cursor.execute("SELECT COUNT(*) as total_user FROM users WHERE role = 'user'")
+        total_user = cursor.fetchone()['total_user']
+        
+        cursor.execute("SELECT COUNT(*) as total_rt_001 FROM users WHERE rt = '001'")
+        total_rt_001 = cursor.fetchone()['total_rt_001']
+        
+    except Exception as e:
+        print(f"Error fetching anggota: {e}")
+        anggota_list = []
+        total_anggota = 0
+        total_admin = 0
+        total_user = 0
+        total_rt_001 = 0
+        total_pages = 0
+    
+    cursor.close()
+    conn.close()
+    
+    return render_template('kelola_anggota.html', 
+                         anggota_list=anggota_list,
+                         search_query=search_query,
+                         rt_filter=rt_filter,
+                         page=page,
+                         per_page=per_page,
+                         total_anggota=total_anggota,
+                         total_admin=total_admin,
+                         total_user=total_user,
+                         total_rt_001=total_rt_001,
+                         total_pages=total_pages)
+
+# ROUTE BARU: Hapus Anggota
+@app.route('/admin/hapus-anggota/<int:user_id>', methods=['POST'])
+def hapus_anggota(user_id):
+    if 'user_id' not in session or session['role'] != 'admin':
+        return redirect(url_for('login'))
+    
+    # Cek apakah admin mencoba menghapus dirinya sendiri
+    if user_id == session['user_id']:
+        flash('Anda tidak dapat menghapus akun sendiri!', 'error')
+        return redirect(url_for('kelola_anggota'))
+    
+    conn = get_db_connection()
+    if not conn:
+        flash('Koneksi database gagal!', 'error')
+        return redirect(url_for('kelola_anggota'))
+    
+    cursor = conn.cursor(dictionary=True)
+    
+    try:
+        # Cek apakah user ada
+        cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+        user = cursor.fetchone()
+        
+        if not user:
+            flash('Anggota tidak ditemukan!', 'error')
+        elif user['role'] == 'admin':
+            flash('Tidak dapat menghapus admin lain!', 'error')
+        else:
+            # Hapus user (akan otomatis hapus absensi terkait karena foreign key constraint)
+            cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
+            conn.commit()
+            
+            # Hapus juga token reset password jika ada
+            cursor.execute("DELETE FROM password_reset_tokens WHERE user_id = %s", (user_id,))
+            conn.commit()
+            
+            flash(f'Anggota {user["nama_lengkap"]} berhasil dihapus!', 'success')
+    
+    except mysql.connector.Error as err:
+        flash(f'Error database: {err}', 'error')
+        print(f"Database error deleting user: {err}")
+        conn.rollback()
+    except Exception as e:
+        flash(f'Terjadi kesalahan: {e}', 'error')
+        print(f"Error deleting user: {e}")
+        conn.rollback()
+    
+    cursor.close()
+    conn.close()
+    
+    return redirect(url_for('kelola_anggota'))
 
 @app.route('/admin/events')
 def admin_events():
@@ -672,7 +815,7 @@ def hapus_absen(absen_id):
     
     try:
         # Cek apakah absensi ada dan milik event yang dibuat oleh admin
-        cursor.execute("""
+        cursor.execute(""" 
             SELECT a.id, e.created_by 
             FROM absensi a 
             JOIN events e ON a.event_id = e.id 
@@ -766,7 +909,7 @@ def generate_qr_code(event_id):
         return redirect(url_for('admin_events'))
     
     # Get current QR code
-    cursor.execute("""
+    cursor.execute(""" 
         SELECT qr_code_data, expires_at
         FROM qr_codes 
         WHERE event_id = %s AND expires_at > %s 
@@ -848,7 +991,7 @@ def generate_token_page(event_id):
         return redirect(url_for('admin_events'))
     
     # Get current token
-    cursor.execute("""
+    cursor.execute(""" 
         SELECT token_data, expires_at
         FROM tokens 
         WHERE event_id = %s AND expires_at > %s 
@@ -918,7 +1061,7 @@ def absen_manual(event_id):
     users = cursor.fetchall()
     
     # Get absensi yang sudah dilakukan
-    cursor.execute("""
+    cursor.execute(""" 
         SELECT u.id, u.nama_lengkap, u.username, u.nomor_telepon, u.rt
         FROM absensi a 
         JOIN users u ON a.user_id = u.id 
@@ -945,7 +1088,7 @@ def absen_manual(event_id):
                 flash('Absensi manual berhasil!', 'success')
                 
                 # Refresh list yang sudah absen
-                cursor.execute("""
+                cursor.execute(""" 
                     SELECT u.id, u.nama_lengkap, u.username, u.nomor_telepon, u.rt
                     FROM absensi a 
                     JOIN users u ON a.user_id = u.id 
@@ -989,7 +1132,7 @@ def hasil_absen(event_id):
         return redirect(url_for('admin_events'))
     
     # Get data absensi dengan metode
-    cursor.execute("""
+    cursor.execute(""" 
         SELECT a.id, u.nama_lengkap, u.username, u.nomor_telepon, u.rt, a.waktu_absen, a.metode_absen
         FROM absensi a 
         JOIN users u ON a.user_id = u.id 
@@ -1027,7 +1170,7 @@ def download_absen(event_id):
         return redirect(url_for('admin_events'))
     
     # Get data absensi dengan metode
-    cursor.execute("""
+    cursor.execute(""" 
         SELECT u.nama_lengkap, u.username, u.nomor_telepon, u.rt, a.waktu_absen, a.metode_absen
         FROM absensi a 
         JOIN users u ON a.user_id = u.id 
@@ -1115,7 +1258,7 @@ def user_dashboard():
     cursor = conn.cursor(dictionary=True)
     
     # Event yang akan datang
-    cursor.execute("""
+    cursor.execute(""" 
         SELECT e.* 
         FROM events e 
         WHERE e.tanggal_event >= %s 
@@ -1124,7 +1267,7 @@ def user_dashboard():
     events_akan_datang = cursor.fetchall()
     
     # Riwayat absensi user
-    cursor.execute("""
+    cursor.execute(""" 
         SELECT e.nama_event, e.tanggal_event, e.waktu_event, a.waktu_absen, a.metode_absen
         FROM absensi a 
         JOIN events e ON a.event_id = e.id 
@@ -1153,7 +1296,7 @@ def user_events():
         
     cursor = conn.cursor(dictionary=True)
     
-    cursor.execute("""
+    cursor.execute(""" 
         SELECT e.*, 
                CASE WHEN a.id IS NOT NULL THEN 1 ELSE 0 END as sudah_absen
         FROM events e 

@@ -30,6 +30,17 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 {% if session.user_id %}
                 <div class="navbar-nav ms-auto">
+                    {% if session.role == 'admin' %}
+                    <a class="nav-link" href="{{ url_for('admin_dashboard') }}">
+                        <i class="fas fa-tachometer-alt me-1"></i>Dashboard
+                    </a>
+                    <a class="nav-link" href="{{ url_for('kelola_anggota') }}">
+                        <i class="fas fa-users me-1"></i>Anggota
+                    </a>
+                    <a class="nav-link" href="{{ url_for('admin_events') }}">
+                        <i class="fas fa-calendar me-1"></i>Event
+                    </a>
+                    {% endif %}
                     <span class="navbar-text me-3 d-none d-md-block">
                         <i class="fas fa-user me-1"></i>Halo, {{ session.nama_lengkap }}
                     </span>
@@ -41,7 +52,6 @@
             </div>
         </div>
     </nav>
-    <!-- ... kode selanjutnya tetap sama ... -->
 
     <div class="container mt-3 mb-5">
         <!-- Flash Messages -->

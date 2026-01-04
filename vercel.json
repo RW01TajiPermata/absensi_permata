@@ -1,0 +1,15 @@
+{
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "absensi-permata.vercel.app"
+        }
+      ],
+      "destination": "https://bit.ly/absensi-permata1",
+      "permanent": true
+    }
+  ]
+}

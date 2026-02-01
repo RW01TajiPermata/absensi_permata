@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+
+{% block title %}Kontrol Pendaftaran - Sistem Absensi Permata{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="h3 mb-0 text-gray-800">
+                <i class="fas fa-user-plus me-2"></i>Kontrol Pendaftaran
+            </h1>
+            <p class="mb-0">Mengaktifkan atau menonaktifkan pendaftaran user baru</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold">
+                        <i class="fas fa-user-plus me-2"></i>Status Pendaftaran Saat Ini
+                    </h6>
+                </div>
+                <div class="card-body">
+                    {% if pendaftaran_aktif == '1' %}
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle me-2"></i>
+                        <strong>PENDAFTARAN SEDANG AKTIF</strong>
+                        <p class="mb-0 mt-2">User baru dapat melakukan registrasi melalui halaman register.</p>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-danger">
+                        <i class="fas fa-times-circle me-2"></i>
+                        <strong>PENDAFTARAN SEDANG NONAKTIF</strong>
+                        <p class="mb-0 mt-2">User baru TIDAK dapat melakukan registrasi. Halaman register akan menampilkan pesan bahwa pendaftaran ditutup.</p>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="card bg-light border-left-info mb-4">
+                        <div class="card-body">
+                            <h6 class="font-weight-bold mb-2">
+                                <i class="fas fa-info-circle me-2"></i>Informasi
+                            </h6>
+                            <ul class="mb-0 ps-3">
+                                <li>Status <strong>AKTIF</strong> = User bisa daftar sendiri</li>
+                                <li>Status <strong>NONAKTIF</strong> = User harus hubungi admin</li>
+                                <li>Admin tetap bisa tambah user manual via menu "Kelola Anggota"</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <form method="POST" action="{{ url_for('kontrol_pendaftaran') }}">
+                        <div class="form-group">
+                            <label for="status" class="font-weight-bold">Ubah Status Pendaftaran:</label>
+                            <select class="form-control" id="status" name="status" required>
+                                <option value="1" {% if pendaftaran_aktif == '1' %}selected{% endif %}>
+                                    ✅ AKTIF - Izinkan pendaftaran
+                                </option>
+                                <option value="0" {% if pendaftaran_aktif == '0' %}selected{% endif %}>
+                                    ❌ NONAKTIF - Tutup pendaftaran
+                                </option>
+                            </select>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>Simpan Perubahan
+                            </button>
+                            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Kembali ke Dashboard
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold">
+                        <i class="fas fa-lightbulb me-2"></i>Kapan Menggunakan Fitur Ini?
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <div class="card border-left-success h-100">
+                                <div class="card-body">
+                                    <div class="text-center mb-3">
+                                        <i class="fas fa-user-check fa-2x text-success"></i>
+                                    </div>
+                                    <h6 class="font-weight-bold text-success">AKTIFKAN PENDAFTARAN</h6>
+                                    <p class="small mb-0">
+                                        Ketika membuka pendaftaran untuk:
+                                        <ul class="small ps-3">
+                                            <li>Anggota baru</li>
+                                            <li>Open recruitment</li>
+                                            <li>Event khusus</li>
+                                        </ul>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <div class="card border-left-danger h-100">
+                                <div class="card-body">
+                                    <div class="text-center mb-3">
+                                        <i class="fas fa-user-lock fa-2x text-danger"></i>
+                                    </div>
+                                    <h6 class="font-weight-bold text-danger">NONAKTIFKAN PENDAFTARAN</h6>
+                                    <p class="small mb-0">
+                                        Ketika ingin:
+                                        <ul class="small ps-3">
+                                            <li>Menutup sementara</li>
+                                            <li>Verifikasi manual</li>
+                                            <li>Masa transisi</li>
+                                        </ul>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-warning mt-3">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Catatan:</strong> Saat pendaftaran dinonaktifkan, link register akan tetap ada tetapi akan menampilkan pesan bahwa pendaftaran ditutup.
+                    </div>
+                    
+                    <div class="card border-left-warning mt-3">
+                        <div class="card-body">
+                            <h6 class="font-weight-bold text-warning">
+                                <i class="fas fa-users me-2"></i>Alternatif Saat Pendaftaran Ditutup
+                            </h6>
+                            <p class="mb-0 small">
+                                Admin masih bisa menambahkan anggota secara manual melalui menu:
+                                <a href="{{ url_for('kelola_anggota') }}" class="btn btn-sm btn-outline-primary ms-2">
+                                    <i class="fas fa-users me-1"></i>Kelola Anggota
+                                </a>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.card {
+    border-radius: 10px;
+    transition: all 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+.card-header {
+    border-bottom: 2px solid #f8f9fa;
+    background-color: #f8f9fa;
+}
+
+.alert-success {
+    border-left: 4px solid #28a745;
+}
+
+.alert-danger {
+    border-left: 4px solid #dc3545;
+}
+
+.alert-warning {
+    border-left: 4px solid #ffc107;
+}
+
+.border-left-success {
+    border-left: 4px solid #28a745 !important;
+}
+
+.border-left-danger {
+    border-left: 4px solid #dc3545 !important;
+}
+
+.border-left-warning {
+    border-left: 4px solid #ffc107 !important;
+}
+
+.border-left-info {
+    border-left: 4px solid #17a2b8 !important;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #052659 0%, #7DA0CA 100%);
+    border: none;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #031b3d 0%, #5c8bc9 100%);
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+    .card-body {
+        padding: 1.5rem;
+    }
+    
+    .btn {
+        padding: 10px 20px;
+    }
+    
+    .alert {
+        padding: 1rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .col-lg-6 {
+        margin-bottom: 1.5rem;
+    }
+    
+    .card-body {
+        padding: 1rem;
+    }
+    
+    .card-header {
+        padding: 1rem;
+    }
+    
+    .btn-sm {
+        padding: 5px 10px;
+        font-size: 0.875rem;
+    }
+}
+</style>
+{% endblock %}

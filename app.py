@@ -710,6 +710,276 @@ def hapus_anggota(user_id):
     
     return redirect(url_for('kelola_anggota'))
 
+# TAMBAHKAN SETELAH ROUTE hapus_anggota
+
+# ROUTE BARU: Tambah Anggota (CREATE)
+@app.route('/admin/tambah-anggota', methods=['GET', 'POST'])
+def tambah_anggota():
+    if 'user_id' not in session or session['role'] != 'admin':
+        return redirect(url_for('login'))
+    
+    if request.method == 'POST':
+        username = request.form['username']
+        nama_lengkap = request.form['nama_lengkap']
+        nomor_telepon = request.form.get('nomor_telepon', '')
+        rt = request.form['rt']
+        password = request.form['password']
+        confirm_password = request.form['confirm_password']
+        
+        # Validasi input
+        if not username or not nama_lengkap or not rt or not password:
+            flash('Semua field wajib diisi!', 'error')
+            return render_template('tambah_edit_anggota.html', mode='tambah')
+        
+        if password != confirm_password:
+            flash('Password dan konfirmasi password tidak cocok!', 'error')
+            return render_template('tambah_edit_anggota.html', mode='tambah', 
+                                 form_data=request.form)
+        
+        if len(password) < 6:
+            flash('Password harus minimal 6 karakter!', 'error')
+            return render_template('tambah_edit_anggota.html', mode='tambah', 
+                                 form_data=request.form)
+        
+        # Validasi username
+        if len(username) < 3:
+            flash('Username harus minimal 3 karakter!', 'error')
+            return render_template('tambah_edit_anggota.html', mode='tambah', 
+                                 form_data=request.form)
+        
+        # Validasi nama lengkap
+        if len(nama_lengkap) < 3:
+            flash('Nama lengkap harus minimal 3 karakter!', 'error')
+            return render_template('tambah_edit_anggota.html', mode='tambah', 
+                                 form_data=request.form)
+        
+        # Validasi nomor telepon
+        if nomor_telepon:
+            nomor_telepon_clean = re.sub(r'\D', '', nomor_telepon)
+            if len(nomor_telepon_clean) < 10 or len(nomor_telepon_clean) > 15:
+                flash('Nomor telepon harus antara 10-15 digit!', 'error')
+                return render_template('tambah_edit_anggota.html', mode='tambah', 
+                                     form_data=request.form)
+            if not nomor_telepon_clean.startswith('0'):
+                flash('Nomor telepon harus dimulai dengan angka 0!', 'error')
+                return render_template('tambah_edit_anggota.html', mode='tambah', 
+                                     form_data=request.form)
+            nomor_telepon = nomor_telepon_clean
+        
+        # Validasi RT
+        valid_rt = ['001', '002', '003', 'KOTA']
+        if rt not in valid_rt:
+            flash('RT yang dipilih tidak valid!', 'error')
+            return render_template('tambah_edit_anggota.html', mode='tambah', 
+                                 form_data=request.form)
+        
+        conn = get_db_connection()
+        if not conn:
+            flash('Koneksi database gagal!', 'error')
+            return render_template('tambah_edit_anggota.html', mode='tambah', 
+                                 form_data=request.form)
+        
+        cursor = conn.cursor(dictionary=True)
+        
+        try:
+            # Cek apakah username sudah digunakan
+            cursor.execute("SELECT id FROM users WHERE username = %s", (username,))
+            existing_user = cursor.fetchone()
+            
+            if existing_user:
+                flash('Username sudah digunakan! Silakan pilih username lain.', 'error')
+                cursor.close()
+                conn.close()
+                return render_template('tambah_edit_anggota.html', mode='tambah', 
+                                     form_data=request.form)
+            
+            # Hash password
+            hashed_password = generate_password_hash(password)
+            
+            # Insert anggota baru
+            cursor.execute(
+                "INSERT INTO users (username, password, nama_lengkap, nomor_telepon, rt, role) VALUES (%s, %s, %s, %s, %s, 'user')",
+                (username, hashed_password, nama_lengkap, nomor_telepon if nomor_telepon else None, rt)
+            )
+            conn.commit()
+            
+            flash(f'Anggota {nama_lengkap} berhasil ditambahkan!', 'success')
+            cursor.close()
+            conn.close()
+            return redirect(url_for('kelola_anggota'))
+            
+        except Exception as e:
+            flash(f'Terjadi kesalahan: {e}', 'error')
+            print(f"Error adding member: {e}")
+            cursor.close()
+            conn.close()
+            return render_template('tambah_edit_anggota.html', mode='tambah', 
+                                 form_data=request.form)
+    
+    return render_template('tambah_edit_anggota.html', mode='tambah')
+
+# ROUTE BARU: Edit Anggota (UPDATE)
+@app.route('/admin/edit-anggota/<int:user_id>', methods=['GET', 'POST'])
+def edit_anggota(user_id):
+    if 'user_id' not in session or session['role'] != 'admin':
+        return redirect(url_for('login'))
+    
+    # Cek apakah admin mencoba mengedit dirinya sendiri
+    if user_id == session['user_id']:
+        flash('Tidak dapat mengedit akun sendiri!', 'error')
+        return redirect(url_for('kelola_anggota'))
+    
+    conn = get_db_connection()
+    if not conn:
+        flash('Koneksi database gagal!', 'error')
+        return redirect(url_for('kelola_anggota'))
+    
+    cursor = conn.cursor(dictionary=True)
+    
+    # Get data anggota
+    cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+    anggota = cursor.fetchone()
+    
+    if not anggota:
+        flash('Anggota tidak ditemukan!', 'error')
+        cursor.close()
+        conn.close()
+        return redirect(url_for('kelola_anggota'))
+    
+    if anggota['role'] == 'admin':
+        flash('Tidak dapat mengedit admin lain!', 'error')
+        cursor.close()
+        conn.close()
+        return redirect(url_for('kelola_anggota'))
+    
+    if request.method == 'POST':
+        username = request.form['username']
+        nama_lengkap = request.form['nama_lengkap']
+        nomor_telepon = request.form.get('nomor_telepon', '')
+        rt = request.form['rt']
+        ganti_password = request.form.get('ganti_password', 'no')
+        password = request.form.get('password', '')
+        confirm_password = request.form.get('confirm_password', '')
+        
+        # Validasi input
+        if not username or not nama_lengkap or not rt:
+            flash('Semua field wajib diisi!', 'error')
+            cursor.close()
+            conn.close()
+            return render_template('tambah_edit_anggota.html', mode='edit', 
+                                 anggota=anggota, form_data=request.form)
+        
+        # Validasi username
+        if len(username) < 3:
+            flash('Username harus minimal 3 karakter!', 'error')
+            cursor.close()
+            conn.close()
+            return render_template('tambah_edit_anggota.html', mode='edit', 
+                                 anggota=anggota, form_data=request.form)
+        
+        # Validasi nama lengkap
+        if len(nama_lengkap) < 3:
+            flash('Nama lengkap harus minimal 3 karakter!', 'error')
+            cursor.close()
+            conn.close()
+            return render_template('tambah_edit_anggota.html', mode='edit', 
+                                 anggota=anggota, form_data=request.form)
+        
+        # Validasi nomor telepon
+        if nomor_telepon:
+            nomor_telepon_clean = re.sub(r'\D', '', nomor_telepon)
+            if len(nomor_telepon_clean) < 10 or len(nomor_telepon_clean) > 15:
+                flash('Nomor telepon harus antara 10-15 digit!', 'error')
+                cursor.close()
+                conn.close()
+                return render_template('tambah_edit_anggota.html', mode='edit', 
+                                     anggota=anggota, form_data=request.form)
+            if not nomor_telepon_clean.startswith('0'):
+                flash('Nomor telepon harus dimulai dengan angka 0!', 'error')
+                cursor.close()
+                conn.close()
+                return render_template('tambah_edit_anggota.html', mode='edit', 
+                                     anggota=anggota, form_data=request.form)
+            nomor_telepon = nomor_telepon_clean
+        
+        # Validasi RT
+        valid_rt = ['001', '002', '003', 'KOTA']
+        if rt not in valid_rt:
+            flash('RT yang dipilih tidak valid!', 'error')
+            cursor.close()
+            conn.close()
+            return render_template('tambah_edit_anggota.html', mode='edit', 
+                                 anggota=anggota, form_data=request.form)
+        
+        # Validasi password jika ganti password
+        if ganti_password == 'yes':
+            if not password or not confirm_password:
+                flash('Password dan konfirmasi password harus diisi!', 'error')
+                cursor.close()
+                conn.close()
+                return render_template('tambah_edit_anggota.html', mode='edit', 
+                                     anggota=anggota, form_data=request.form)
+            
+            if password != confirm_password:
+                flash('Password dan konfirmasi password tidak cocok!', 'error')
+                cursor.close()
+                conn.close()
+                return render_template('tambah_edit_anggota.html', mode='edit', 
+                                     anggota=anggota, form_data=request.form)
+            
+            if len(password) < 6:
+                flash('Password harus minimal 6 karakter!', 'error')
+                cursor.close()
+                conn.close()
+                return render_template('tambah_edit_anggota.html', mode='edit', 
+                                     anggota=anggota, form_data=request.form)
+        
+        try:
+            # Cek apakah username sudah digunakan (kecuali oleh user yang sama)
+            cursor.execute("SELECT id FROM users WHERE username = %s AND id != %s", 
+                          (username, user_id))
+            existing_user = cursor.fetchone()
+            
+            if existing_user:
+                flash('Username sudah digunakan! Silakan pilih username lain.', 'error')
+                cursor.close()
+                conn.close()
+                return render_template('tambah_edit_anggota.html', mode='edit', 
+                                     anggota=anggota, form_data=request.form)
+            
+            # Update data anggota
+            if ganti_password == 'yes':
+                hashed_password = generate_password_hash(password)
+                cursor.execute(
+                    "UPDATE users SET username = %s, nama_lengkap = %s, nomor_telepon = %s, rt = %s, password = %s WHERE id = %s",
+                    (username, nama_lengkap, nomor_telepon if nomor_telepon else None, rt, hashed_password, user_id)
+                )
+            else:
+                cursor.execute(
+                    "UPDATE users SET username = %s, nama_lengkap = %s, nomor_telepon = %s, rt = %s WHERE id = %s",
+                    (username, nama_lengkap, nomor_telepon if nomor_telepon else None, rt, user_id)
+                )
+            
+            conn.commit()
+            
+            flash(f'Data anggota {nama_lengkap} berhasil diperbarui!', 'success')
+            cursor.close()
+            conn.close()
+            return redirect(url_for('kelola_anggota'))
+            
+        except Exception as e:
+            flash(f'Terjadi kesalahan: {e}', 'error')
+            print(f"Error updating member: {e}")
+            cursor.close()
+            conn.close()
+            return render_template('tambah_edit_anggota.html', mode='edit', 
+                                 anggota=anggota, form_data=request.form)
+    
+    cursor.close()
+    conn.close()
+    return render_template('tambah_edit_anggota.html', mode='edit', anggota=anggota)
+
+
 @app.route('/admin/events')
 def admin_events():
     if 'user_id' not in session or session['role'] != 'admin':

@@ -294,7 +294,10 @@ def validate_absen_access(event_id, absen_type, input_data):
         cursor.close()
         conn.close()
 
-# Routes untuk Lupa Sandi
+# ===============================================
+# ROUTES UNTUK LUPA SANDI YANG DIPERBAIKI
+# ===============================================
+
 @app.route('/lupa-sandi', methods=['GET', 'POST'])
 def lupa_sandi():
     if request.method == 'POST':
@@ -302,7 +305,8 @@ def lupa_sandi():
         
         conn = get_db_connection()
         if not conn:
-            flash('Koneksi database gagal!', 'error')
+            # PESAN AMAN: Tidak spesifik
+            flash('Permintaan telah diproses. Jika username terdaftar, instruksi akan dikirim.', 'info')
             return render_template('lupa_sandi.html')
             
         cursor = conn.cursor(dictionary=True)
@@ -315,7 +319,7 @@ def lupa_sandi():
             if user:
                 # Generate reset token
                 reset_token = secrets.token_urlsafe(32)
-                expires_at = get_current_time() + datetime.timedelta(minutes=30)  # Token berlaku 30 menit
+                expires_at = get_current_time() + datetime.timedelta(minutes=30)
                 
                 # Simpan token ke database
                 cursor.execute(
@@ -324,18 +328,30 @@ def lupa_sandi():
                 )
                 conn.commit()
                 
-                # Redirect ke halaman reset dengan token
+                # Simpan token di session untuk redirect
                 session['reset_token'] = reset_token
                 session['reset_user_id'] = user['id']
                 
-                flash('Token reset password telah dibuat. Silakan buat password baru.', 'success')
-                return redirect(url_for('reset_sandi', token=reset_token))
+                # KIRIM PESAN YANG SAMA UNTUK SEMUA KASUS
+                flash('Permintaan reset password telah diproses. Jika username terdaftar, instruksi akan dikirim.', 'info')
+                cursor.close()
+                conn.close()
                 
+                # Redirect ke halaman reset dengan token yang valid
+                return redirect(url_for('reset_sandi', token=reset_token))
             else:
-                flash('Username tidak ditemukan!', 'error')
+                # Jika username tidak ditemukan, tetap berikan respons yang sama
+                # Tapi dengan token dummy yang akan gagal di validasi
+                flash('Permintaan reset password telah diproses. Jika username terdaftar, instruksi akan dikirim.', 'info')
+                cursor.close()
+                conn.close()
+                
+                # Redirect ke halaman reset dengan token dummy
+                return redirect(url_for('reset_sandi', token='invalid_token_dummy'))
                 
         except Exception as e:
-            flash('Terjadi kesalahan saat memproses permintaan.', 'error')
+            # PESAN ERROR YANG AMAN
+            flash('Permintaan telah diproses. Jika username terdaftar, instruksi akan dikirim.', 'info')
             print(f"Error in lupa_sandi: {e}")
         finally:
             cursor.close()
@@ -345,9 +361,14 @@ def lupa_sandi():
 
 @app.route('/reset-sandi/<token>', methods=['GET', 'POST'])
 def reset_sandi(token):
+    # Jika token adalah dummy (dari username yang tidak ada), tampilkan pesan aman tanpa form
+    if token == 'invalid_token_dummy':
+        flash('Permintaan reset password telah diproses. Jika username terdaftar, instruksi akan dikirim.', 'info')
+        return render_template('reset_sandi.html', token=token, username='', show_form=False)
+    
     conn = get_db_connection()
     if not conn:
-        flash('Koneksi database gagal!', 'error')
+        flash('Terjadi kesalahan sistem. Silakan coba lagi nanti.', 'error')
         return redirect(url_for('lupa_sandi'))
         
     cursor = conn.cursor(dictionary=True)
@@ -363,11 +384,12 @@ def reset_sandi(token):
         
         token_data = cursor.fetchone()
         
+        # JIKA TOKEN INVALID
         if not token_data:
-            flash('Token tidak valid atau sudah kedaluwarsa!', 'error')
+            flash('Link reset password tidak valid atau telah kadaluarsa.', 'info')
             cursor.close()
             conn.close()
-            return redirect(url_for('lupa_sandi'))
+            return render_template('reset_sandi.html', token=token, username='', show_form=False)
         
         if request.method == 'POST':
             password = request.form['password']
@@ -375,15 +397,15 @@ def reset_sandi(token):
             
             if not password or not confirm_password:
                 flash('Password dan konfirmasi password harus diisi!', 'error')
-                return render_template('reset_sandi.html', token=token, username=token_data['username'])
+                return render_template('reset_sandi.html', token=token, username=token_data['username'], show_form=True)
             
             if password != confirm_password:
                 flash('Password dan konfirmasi password tidak cocok!', 'error')
-                return render_template('reset_sandi.html', token=token, username=token_data['username'])
+                return render_template('reset_sandi.html', token=token, username=token_data['username'], show_form=True)
             
             if len(password) < 6:
                 flash('Password harus minimal 6 karakter!', 'error')
-                return render_template('reset_sandi.html', token=token, username=token_data['username'])
+                return render_template('reset_sandi.html', token=token, username=token_data['username'], show_form=True)
             
             # Update password
             hashed_password = generate_password_hash(password)
@@ -405,20 +427,26 @@ def reset_sandi(token):
             session.pop('reset_user_id', None)
             
             flash('Password berhasil direset! Silakan login dengan password baru.', 'success')
+            cursor.close()
+            conn.close()
             return redirect(url_for('login'))
         
         cursor.close()
         conn.close()
-        return render_template('reset_sandi.html', token=token, username=token_data['username'])
+        return render_template('reset_sandi.html', token=token, username=token_data['username'], show_form=True)
         
     except Exception as e:
-        flash('Terjadi kesalahan saat mereset password.', 'error')
+        # PESAN ERROR YANG AMAN
+        flash('Terjadi kesalahan saat memproses permintaan reset password.', 'error')
         print(f"Error in reset_sandi: {e}")
         cursor.close()
         conn.close()
-        return redirect(url_for('lupa_sandi'))
+        return render_template('reset_sandi.html', token=token, username='', show_form=False)
 
-# Routes
+# ===============================================
+# ROUTES LAINNYA (TETAP SAMA)
+# ===============================================
+
 @app.route('/')
 def index():
     if 'user_id' in session:

@@ -63,6 +63,38 @@
     </div>
 </div>
 
+<!-- Tambahkan Card Status Pendaftaran di sini -->
+<div class="row mb-4">
+    <div class="col-12 col-md-6 col-lg-4">
+        <div class="card border-left-warning shadow h-100">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                            <i class="fas fa-user-plus me-1"></i>Status Pendaftaran
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                            {% if pendaftaran_aktif == '1' %}
+                            <span class="text-success">✅ AKTIF</span>
+                            {% else %}
+                            <span class="text-danger">❌ NONAKTIF</span>
+                            {% endif %}
+                        </div>
+                        <div class="mt-2">
+                            <a href="{{ url_for('kontrol_pendaftaran') }}" class="btn btn-sm btn-outline-warning">
+                                <i class="fas fa-cog me-1"></i>Kontrol Pendaftaran
+                            </a>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-user-plus fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="row">
     <!-- Menu Cepat -->
     <div class="col-12 col-md-6 mb-4">
@@ -83,6 +115,10 @@
                     <!-- Tombol Baru: Kelola Anggota -->
                     <a href="{{ url_for('kelola_anggota') }}" class="btn btn-outline-success">
                         <i class="fas fa-users me-2"></i>Kelola Anggota
+                    </a>
+                    <!-- Tombol Baru: Kontrol Pendaftaran -->
+                    <a href="{{ url_for('kontrol_pendaftaran') }}" class="btn btn-outline-warning">
+                        <i class="fas fa-user-plus me-2"></i>Kontrol Pendaftaran
                     </a>
                 </div>
             </div>
@@ -161,6 +197,17 @@
 .event-item:hover {
     background: rgba(193, 232, 255, 0.2);
     transform: translateX(5px);
+}
+
+/* Styling untuk card status pendaftaran */
+.card.border-left-warning {
+    border-left: 4px solid #ffc107 !important;
+}
+
+.card.border-left-warning:hover {
+    box-shadow: 0 0 15px rgba(255, 193, 7, 0.2);
+    transform: translateY(-2px);
+    transition: all 0.3s ease;
 }
 
 /* Mobile optimizations */

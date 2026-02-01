@@ -113,6 +113,33 @@ def ensure_admin_exists():
             # Test password admin123
             if check_password_hash(admin['password'], 'admin123'):
                 print("✅ Admin exists with correct password")
+                
+                # Pastikan tabel settings ada dan punya record default
+                cursor.execute("SHOW TABLES LIKE 'settings'")
+                if not cursor.fetchone():
+                    # Buat tabel settings jika belum ada
+                    cursor.execute("""
+                        CREATE TABLE settings (
+                            id INT PRIMARY KEY AUTO_INCREMENT,
+                            setting_key VARCHAR(50) UNIQUE NOT NULL,
+                            setting_value VARCHAR(255),
+                            description TEXT,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                        )
+                    """)
+                    print("✅ Settings table created")
+                
+                # Insert default settings jika belum ada
+                cursor.execute("SELECT * FROM settings WHERE setting_key = 'pendaftaran_aktif'")
+                if not cursor.fetchone():
+                    cursor.execute("""
+                        INSERT INTO settings (setting_key, setting_value, description) 
+                        VALUES ('pendaftaran_aktif', '1', 'Status pendaftaran: 1=aktif, 0=nonaktif')
+                    """)
+                    print("✅ Default setting added: pendaftaran_aktif=1")
+                
+                conn.commit()
                 return True
             else:
                 # Update password admin
@@ -128,12 +155,76 @@ def ensure_admin_exists():
                 "INSERT INTO users (username, password, nama_lengkap, nomor_telepon, rt, role) VALUES (%s, %s, %s, %s, %s, 'admin')",
                 ('admin', hashed_password, 'Administrator Permata', '081234567890', '001')
             )
+            
+            # Buat tabel settings
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS settings (
+                    id INT PRIMARY KEY AUTO_INCREMENT,
+                    setting_key VARCHAR(50) UNIQUE NOT NULL,
+                    setting_value VARCHAR(255),
+                    description TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Insert default settings
+            cursor.execute("""
+                INSERT INTO settings (setting_key, setting_value, description) 
+                VALUES ('pendaftaran_aktif', '1', 'Status pendaftaran: 1=aktif, 0=nonaktif')
+            """)
+            
             conn.commit()
             print("✅ Admin user created with password 'admin123'")
+            print("✅ Settings table created")
             return True
             
     except Exception as e:
         print(f"❌ Error ensuring admin exists: {e}")
+        return False
+    finally:
+        cursor.close()
+        conn.close()
+
+# Fungsi untuk mendapatkan setting
+def get_setting(key, default=None):
+    conn = get_db_connection()
+    if not conn:
+        return default
+        
+    cursor = conn.cursor(dictionary=True)
+    
+    try:
+        cursor.execute("SELECT setting_value FROM settings WHERE setting_key = %s", (key,))
+        result = cursor.fetchone()
+        if result:
+            return result['setting_value']
+        return default
+    except Exception as e:
+        print(f"Error getting setting {key}: {e}")
+        return default
+    finally:
+        cursor.close()
+        conn.close()
+
+# Fungsi untuk update setting
+def update_setting(key, value):
+    conn = get_db_connection()
+    if not conn:
+        return False
+        
+    cursor = conn.cursor(dictionary=True)
+    
+    try:
+        cursor.execute("""
+            INSERT INTO settings (setting_key, setting_value) 
+            VALUES (%s, %s) 
+            ON DUPLICATE KEY UPDATE setting_value = %s, updated_at = CURRENT_TIMESTAMP
+        """, (key, value, value))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error updating setting {key}: {e}")
         return False
     finally:
         cursor.close()
@@ -409,6 +500,13 @@ def login():
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
+    # Cek apakah pendaftaran aktif
+    pendaftaran_aktif = get_setting('pendaftaran_aktif', '1')
+    
+    if pendaftaran_aktif == '0':
+        flash('❌ Pendaftaran sedang ditutup. Silakan hubungi administrator untuk informasi lebih lanjut.', 'error')
+        return redirect(url_for('login'))
+    
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
@@ -491,7 +589,7 @@ def register():
             )
             conn.commit()
             
-            flash('Registrasi berhasil! Silakan login.', 'success')
+            flash('✅ Registrasi berhasil! Silakan login.', 'success')
             cursor.close()
             conn.close()
             return redirect(url_for('login'))
@@ -515,6 +613,9 @@ def admin_dashboard():
     if 'user_id' not in session or session['role'] != 'admin':
         return redirect(url_for('login'))
     
+    # Cek status pendaftaran
+    pendaftaran_aktif = get_setting('pendaftaran_aktif', '1')
+    
     conn = get_db_connection()
     if not conn:
         flash('Koneksi database gagal!', 'error')
@@ -522,7 +623,8 @@ def admin_dashboard():
                              total_events=0,
                              total_users=0,
                              total_absen_hari_ini=0,
-                             events_hari_ini=[])
+                             events_hari_ini=[],
+                             pendaftaran_aktif=pendaftaran_aktif)
         
     cursor = conn.cursor(dictionary=True)
     
@@ -565,7 +667,31 @@ def admin_dashboard():
                          total_events=total_events,
                          total_users=total_users,
                          total_absen_hari_ini=total_absen_hari_ini,
-                         events_hari_ini=events_hari_ini)
+                         events_hari_ini=events_hari_ini,
+                         pendaftaran_aktif=pendaftaran_aktif)
+
+# ROUTE BARU: Kontrol Pendaftaran
+@app.route('/admin/kontrol-pendaftaran', methods=['GET', 'POST'])
+def kontrol_pendaftaran():
+    if 'user_id' not in session or session['role'] != 'admin':
+        return redirect(url_for('login'))
+    
+    if request.method == 'POST':
+        status = request.form.get('status', '0')
+        
+        if update_setting('pendaftaran_aktif', status):
+            status_text = "AKTIF" if status == '1' else "NONAKTIF"
+            flash(f'✅ Status pendaftaran berhasil diubah menjadi {status_text}', 'success')
+        else:
+            flash('❌ Gagal mengubah status pendaftaran', 'error')
+        
+        return redirect(url_for('kontrol_pendaftaran'))
+    
+    # Get current status
+    pendaftaran_aktif = get_setting('pendaftaran_aktif', '1')
+    
+    return render_template('kontrol_pendaftaran.html', 
+                         pendaftaran_aktif=pendaftaran_aktif)
 
 # ROUTE BARU: Kelola Anggota
 @app.route('/admin/kelola-anggota')
@@ -709,8 +835,6 @@ def hapus_anggota(user_id):
     conn.close()
     
     return redirect(url_for('kelola_anggota'))
-
-# TAMBAHKAN SETELAH ROUTE hapus_anggota
 
 # ROUTE BARU: Tambah Anggota (CREATE)
 @app.route('/admin/tambah-anggota', methods=['GET', 'POST'])
@@ -1713,6 +1837,7 @@ if __name__ == '__main__':
     print(f"🌏 Timezone: Asia/Jakarta (UTC+7)")
     print("=" * 50)
     print("✅ FITUR BARU: Absensi bisa dilakukan kapan saja selama QR Code/Token masih aktif!")
+    print("✅ FITUR BARU: Kontrol Pendaftaran - Admin bisa aktifkan/nonaktifkan pendaftaran")
     print("❌ TIDAK ADA BATASAN WAKTU EVENT LAGI")
     print("=" * 50)
     

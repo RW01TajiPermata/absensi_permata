@@ -13,6 +13,10 @@
             <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-secondary btn-sm">
                 <i class="fas fa-arrow-left me-2"></i>Kembali ke Dashboard
             </a>
+            <!-- TAMBAH TOMBOL INI -->
+            <a href="{{ url_for('tambah_anggota') }}" class="btn btn-success btn-sm">
+                <i class="fas fa-user-plus me-2"></i>Tambah Anggota
+            </a>
         </div>
     </div>
 
@@ -120,6 +124,13 @@
                             <td class="text-center">
                                 {% if anggota.role != 'admin' %}
                                 <div class="btn-group btn-group-sm" role="group">
+                                    <!-- TAMBAH TOMBOL EDIT -->
+                                    <a href="{{ url_for('edit_anggota', user_id=anggota.id) }}" 
+                                       class="btn btn-primary" 
+                                       title="Edit Anggota">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <!-- TOMBOL DELETE YANG SUDAH ADA -->
                                     <button type="button" class="btn btn-danger delete-btn" 
                                             data-member-id="{{ anggota.id }}"
                                             data-member-name="{{ anggota.nama_lengkap }}"
@@ -176,6 +187,9 @@
                 <i class="fas fa-users-slash fa-3x text-muted mb-3"></i>
                 <h5 class="text-muted">Tidak ada data anggota</h5>
                 <p class="text-muted">Belum ada anggota yang terdaftar.</p>
+                <a href="{{ url_for('tambah_anggota') }}" class="btn btn-success mt-3">
+                    <i class="fas fa-user-plus me-2"></i>Tambah Anggota Pertama
+                </a>
             </div>
             {% endif %}
         </div>
@@ -301,6 +315,36 @@
     font-weight: 600;
 }
 
+/* Styling untuk tombol aksi di tabel */
+.btn-group-sm .btn {
+    border-radius: 0;
+    padding: 5px 10px;
+    font-size: 0.875rem;
+}
+
+.btn-group-sm .btn:first-child {
+    border-top-left-radius: 4px;
+    border-bottom-left-radius: 4px;
+}
+
+.btn-group-sm .btn:last-child {
+    border-top-right-radius: 4px;
+    border-bottom-right-radius: 4px;
+}
+
+/* Hover effect untuk tombol aksi */
+.btn-group-sm .btn-primary:hover {
+    background-color: #0b5ed7;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(13, 110, 253, 0.3);
+}
+
+.btn-group-sm .btn-danger:hover:not(:disabled) {
+    background-color: #bb2d3b;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
+}
+
 /* Mencegah glitch pada modal */
 .modal {
     will-change: transform, opacity;
@@ -369,6 +413,11 @@
     .modal-dialog {
         margin: 0.5rem;
     }
+    
+    /* Responsive untuk tombol aksi */
+    .btn-group.btn-group-sm {
+        flex-wrap: nowrap;
+    }
 }
 
 @media (max-width: 576px) {
@@ -380,6 +429,48 @@
         padding: 6px 10px;
         font-size: 0.875rem;
     }
+    
+    /* Responsive untuk tombol header */
+    .d-flex.flex-wrap.gap-2 {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .d-flex.flex-wrap.gap-2 .btn {
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
+}
+
+/* Loading animation untuk form submit */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.fa-spinner.fa-spin {
+    animation: spin 1s linear infinite;
+}
+
+/* Tooltip styling */
+[title] {
+    position: relative;
+}
+
+[title]:hover:after {
+    content: attr(title);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #333;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    z-index: 1000;
+    pointer-events: none;
 }
 </style>
 
@@ -465,6 +556,14 @@ document.addEventListener('DOMContentLoaded', function() {
         
         row.addEventListener('mouseleave', function() {
             this.style.backgroundColor = '';
+        });
+    });
+    
+    // Tooltip untuk tombol edit
+    const editButtons = document.querySelectorAll('a[title="Edit Anggota"]');
+    editButtons.forEach(button => {
+        button.addEventListener('mouseenter', function() {
+            // Tooltip sudah dihandle oleh CSS
         });
     });
 });

@@ -21,14 +21,39 @@
                                 <h6 class="mb-0">Input Absensi Manual</h6>
                             </div>
                             <div class="card-body">
-                                <form method="POST">
+                                <form method="POST" id="absenForm">
                                     <div class="mb-3">
                                         <label for="user_id" class="form-label">Pilih Anggota</label>
-                                        <select class="form-select" id="user_id" name="user_id" required>
+                                        
+                                        <!-- Search Input -->
+                                        <div class="input-group mb-2">
+                                            <span class="input-group-text">
+                                                <i class="fas fa-search"></i>
+                                            </span>
+                                            <input type="text" class="form-control" 
+                                                   id="searchMember" 
+                                                   placeholder="Cari nama, username, nomor telepon, atau RT..."
+                                                   autocomplete="off">
+                                            <button type="button" class="btn btn-outline-secondary" 
+                                                    id="clearSearch" 
+                                                    style="display: none;">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </div>
+                                        <div id="searchResults" class="small text-muted mb-2">
+                                            Ketik untuk mencari anggota...
+                                        </div>
+                                        
+                                        <!-- Select Dropdown -->
+                                        <select class="form-select" id="user_id" name="user_id" required size="8">
                                             <option value="">-- Pilih Anggota --</option>
                                             {% for user in users %}
                                                 {% if user.id not in sudah_absen_ids %}
-                                                    <option value="{{ user.id }}">
+                                                    <option value="{{ user.id }}" 
+                                                            data-nama="{{ user.nama_lengkap|lower }}"
+                                                            data-username="{{ user.username|lower }}"
+                                                            data-telepon="{{ user.nomor_telepon|default('')|lower }}"
+                                                            data-rt="{{ user.rt|default('')|lower }}">
                                                         {{ user.nama_lengkap }} ({{ user.username }}) 
                                                         {% if user.nomor_telepon %}- {{ user.nomor_telepon }}{% endif %}
                                                         {% if user.rt %}- RT {{ user.rt }}{% endif %}
@@ -81,4 +106,284 @@
         </div>
     </div>
 </div>
+
+<!-- Tambahkan script untuk search functionality -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('searchMember');
+    const selectElement = document.getElementById('user_id');
+    const clearSearchBtn = document.getElementById('clearSearch');
+    const searchResults = document.getElementById('searchResults');
+    const originalOptions = Array.from(selectElement.options).slice(1); // Exclude first option
+    const form = document.getElementById('absenForm');
+    
+    let filteredOptions = [...originalOptions];
+    
+    // Fungsi untuk update hasil pencarian
+    function updateSearchResults() {
+        const searchTerm = searchInput.value.trim().toLowerCase();
+        const searchWords = searchTerm.split(' ').filter(word => word.length > 0);
+        
+        if (searchTerm === '') {
+            // Tampilkan semua option
+            selectElement.innerHTML = '<option value="">-- Pilih Anggota --</option>' + 
+                                      originalOptions.map(opt => opt.outerHTML).join('');
+            filteredOptions = [...originalOptions];
+            clearSearchBtn.style.display = 'none';
+            searchResults.textContent = 'Ketik untuk mencari anggota...';
+            searchResults.className = 'small text-muted mb-2';
+            return;
+        }
+        
+        // Filter options berdasarkan kata kunci
+        filteredOptions = originalOptions.filter(option => {
+            const nama = option.getAttribute('data-nama') || '';
+            const username = option.getAttribute('data-username') || '';
+            const telepon = option.getAttribute('data-telepon') || '';
+            const rt = option.getAttribute('data-rt') || '';
+            
+            // Gabungkan semua data untuk pencarian
+            const searchableText = `${nama} ${username} ${telepon} ${rt}`;
+            
+            // Cek semua kata kunci
+            return searchWords.every(word => 
+                searchableText.includes(word)
+            );
+        });
+        
+        // Update dropdown
+        selectElement.innerHTML = '<option value="">-- Pilih Anggota --</option>' + 
+                                  filteredOptions.map(opt => opt.outerHTML).join('');
+        
+        // Highlight teks yang cocok
+        if (searchTerm.length >= 2) {
+            highlightSearchTerms();
+        }
+        
+        // Update info hasil pencarian
+        const resultCount = filteredOptions.length;
+        const totalCount = originalOptions.length;
+        
+        if (resultCount === 0) {
+            searchResults.textContent = `❌ Tidak ditemukan anggota dengan kata kunci "${searchTerm}"`;
+            searchResults.className = 'small text-danger mb-2';
+        } else if (resultCount === 1) {
+            searchResults.textContent = `✅ Ditemukan 1 anggota`;
+            searchResults.className = 'small text-success mb-2';
+        } else {
+            searchResults.textContent = `✅ Ditemukan ${resultCount} dari ${totalCount} anggota`;
+            searchResults.className = 'small text-success mb-2';
+        }
+        
+        clearSearchBtn.style.display = 'block';
+        
+        // Auto select jika hanya ada 1 hasil
+        if (resultCount === 1 && searchTerm.length >= 2) {
+            selectElement.selectedIndex = 1; // Select the first option (index 0 adalah placeholder)
+        }
+    }
+    
+    // Fungsi untuk highlight teks yang cocok
+    function highlightSearchTerms() {
+        const searchTerm = searchInput.value.trim().toLowerCase();
+        const searchWords = searchTerm.split(' ').filter(word => word.length > 0);
+        
+        const options = selectElement.querySelectorAll('option:not([value=""])');
+        
+        options.forEach(option => {
+            const originalHTML = option.innerHTML;
+            let highlightedHTML = originalHTML;
+            
+            searchWords.forEach(word => {
+                if (word.length < 2) return;
+                
+                const regex = new RegExp(`(${word})`, 'gi');
+                highlightedHTML = highlightedHTML.replace(regex, '<mark class="bg-warning">$1</mark>');
+            });
+            
+            option.innerHTML = highlightedHTML;
+        });
+    }
+    
+    // Event listener untuk search input
+    searchInput.addEventListener('input', function() {
+        updateSearchResults();
+    });
+    
+    // Event listener untuk clear search button
+    clearSearchBtn.addEventListener('click', function() {
+        searchInput.value = '';
+        updateSearchResults();
+        searchInput.focus();
+    });
+    
+    // Keyboard navigation
+    searchInput.addEventListener('keydown', function(e) {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (selectElement.options.length > 1) {
+                selectElement.focus();
+                if (selectElement.selectedIndex < 1) {
+                    selectElement.selectedIndex = 1;
+                }
+            }
+        }
+        
+        if (e.key === 'Escape') {
+            searchInput.value = '';
+            updateSearchResults();
+        }
+    });
+    
+    // Keyboard navigation di select
+    selectElement.addEventListener('keydown', function(e) {
+        if (e.key === 'ArrowUp' && selectElement.selectedIndex <= 1) {
+            e.preventDefault();
+            searchInput.focus();
+        }
+    });
+    
+    // Focus ke search input saat halaman load
+    searchInput.focus();
+    
+    // Prevent form submission jika tidak ada anggota yang dipilih
+    form.addEventListener('submit', function(e) {
+        if (!selectElement.value) {
+            e.preventDefault();
+            alert('Silakan pilih anggota terlebih dahulu!');
+            selectElement.focus();
+        }
+    });
+    
+    // Update search saat ada perubahan di select (untuk reset highlight)
+    selectElement.addEventListener('change', function() {
+        // Reset highlight setelah memilih
+        if (searchInput.value.trim()) {
+            updateSearchResults();
+        }
+    });
+    
+    // Auto-focus search input saat tab di navigasi
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Tab' && document.activeElement === selectElement) {
+            // Skip ke next element setelah select
+        }
+    });
+    
+    // Tambahkan style untuk mark/highlight
+    const style = document.createElement('style');
+    style.textContent = `
+        mark.bg-warning {
+            background-color: #ffc107 !important;
+            color: #000;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        
+        #searchMember:focus {
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 0.2rem rgba(125, 160, 202, 0.25);
+        }
+        
+        #searchResults {
+            min-height: 20px;
+            transition: all 0.3s ease;
+        }
+        
+        .input-group .btn-outline-secondary:hover {
+            background-color: #f8f9fa;
+            border-color: #7DA0CA;
+        }
+        
+        select option:checked {
+            background: linear-gradient(135deg, var(--accent-blue) 0%, #95b8e6 100%);
+            color: white;
+        }
+        
+        select option:hover {
+            background-color: rgba(125, 160, 202, 0.1);
+        }
+        
+        #user_id {
+            cursor: pointer;
+        }
+        
+        #user_id option {
+            padding: 8px 12px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        #user_id option:last-child {
+            border-bottom: none;
+        }
+    `;
+    document.head.appendChild(style);
+});
+</script>
+
+<style>
+    /* Additional styling untuk select dropdown yang lebih besar */
+    #user_id {
+        min-height: 200px;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    
+    /* Styling untuk search input group */
+    .input-group {
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    
+    .input-group-text {
+        background: linear-gradient(135deg, var(--primary-medium) 0%, var(--accent-blue) 100%);
+        color: white;
+        border: none;
+        padding: 10px 15px;
+    }
+    
+    #searchMember {
+        border-left: none;
+        padding: 10px 15px;
+    }
+    
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        #user_id {
+            min-height: 150px;
+            max-height: 200px;
+        }
+        
+        .input-group {
+            margin-bottom: 10px;
+        }
+        
+        #searchMember::placeholder {
+            font-size: 14px;
+        }
+    }
+    
+    @media (max-width: 576px) {
+        .row {
+            margin-left: -5px;
+            margin-right: -5px;
+        }
+        
+        .col-md-6 {
+            padding-left: 5px;
+            padding-right: 5px;
+        }
+        
+        #user_id {
+            font-size: 14px;
+        }
+        
+        #searchMember {
+            font-size: 14px;
+            padding: 8px 12px;
+        }
+    }
+</style>
 {% endblock %}

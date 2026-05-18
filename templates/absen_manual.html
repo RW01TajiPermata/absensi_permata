@@ -23,7 +23,8 @@
                             <div class="card-body">
                                 <form method="POST" id="absenForm">
                                     <div class="mb-3">
-                                        <label for="user_id" class="form-label">Pilih Anggota</label>
+                                        <label for="searchMember" class="form-label">Pilih Anggota</label>
+                                        <input type="hidden" id="user_id" name="user_id" required>
                                         
                                         <!-- Search Input -->
                                         <div class="input-group mb-2">
@@ -44,26 +45,35 @@
                                             Ketik untuk mencari anggota...
                                         </div>
                                         
-                                        <!-- Select Dropdown -->
-                                        <select class="form-select" id="user_id" name="user_id" required size="8">
-                                            <option value="">-- Pilih Anggota --</option>
+                                        <div id="selectedMember" class="selected-member d-none mb-2"></div>
+
+                                        <div id="memberList" class="member-list" role="listbox" aria-label="Daftar anggota belum absen">
                                             {% for user in users %}
                                                 {% if user.id not in sudah_absen_ids %}
-                                                    <option value="{{ user.id }}" 
+                                                    <button type="button"
+                                                            class="member-option"
+                                                            data-id="{{ user.id }}"
                                                             data-nama="{{ user.nama_lengkap|lower }}"
+                                                            data-display-name="{{ user.nama_lengkap }}"
                                                             data-username="{{ user.username|lower }}"
+                                                            data-display-username="{{ user.username }}"
                                                             data-telepon="{{ user.nomor_telepon|default('')|lower }}"
-                                                            data-rt="{{ user.rt|default('')|lower }}">
-                                                        {{ user.nama_lengkap }} ({{ user.username }}) 
-                                                        {% if user.nomor_telepon %}- {{ user.nomor_telepon }}{% endif %}
-                                                        {% if user.rt %}- RT {{ user.rt }}{% endif %}
-                                                    </option>
+                                                            data-display-telepon="{{ user.nomor_telepon|default('') }}"
+                                                            data-rt="{{ user.rt|default('')|lower }}"
+                                                            data-display-rt="{{ user.rt|default('') }}">
+                                                        <span class="member-name">{{ user.nama_lengkap }}</span>
+                                                        <span class="member-meta">
+                                                            {{ user.username }}
+                                                            {% if user.nomor_telepon %}- {{ user.nomor_telepon }}{% endif %}
+                                                            {% if user.rt %}- RT {{ user.rt }}{% endif %}
+                                                        </span>
+                                                    </button>
                                                 {% endif %}
                                             {% endfor %}
-                                        </select>
+                                        </div>
                                         <div class="form-text">Hanya menampilkan anggota yang belum absen</div>
                                     </div>
-                                    <button type="submit" class="btn btn-success w-100">Simpan Absensi</button>
+                                    <button type="submit" class="btn btn-success w-100" id="submitAbsen" disabled>Simpan Absensi</button>
                                 </form>
                             </div>
                         </div>
@@ -107,8 +117,8 @@
     </div>
 </div>
 
-<!-- Tambahkan script untuk search functionality -->
-<script>
+<!-- Script lama disimpan sebagai teks agar tidak berjalan setelah UI diganti ke daftar klik. -->
+<script type="text/plain" id="legacy-manual-search-script">
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('searchMember');
     const selectElement = document.getElementById('user_id');
@@ -322,12 +332,181 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('searchMember');
+    const userIdInput = document.getElementById('user_id');
+    const clearSearchBtn = document.getElementById('clearSearch');
+    const searchResults = document.getElementById('searchResults');
+    const selectedMember = document.getElementById('selectedMember');
+    const submitBtn = document.getElementById('submitAbsen');
+    const memberOptions = Array.from(document.querySelectorAll('.member-option'));
+    const form = document.getElementById('absenForm');
+    let filteredOptions = [...memberOptions];
+
+    function clearSelection() {
+        userIdInput.value = '';
+        selectedMember.classList.add('d-none');
+        selectedMember.textContent = '';
+        submitBtn.disabled = true;
+        memberOptions.forEach(option => option.classList.remove('selected'));
+    }
+
+    function selectMember(option) {
+        userIdInput.value = option.dataset.id;
+        memberOptions.forEach(item => item.classList.remove('selected'));
+        option.classList.add('selected');
+        selectedMember.classList.remove('d-none');
+        selectedMember.innerHTML = `
+            <i class="fas fa-check-circle me-1"></i>
+            Dipilih: <strong>${option.dataset.displayName}</strong>
+            <span class="text-muted">(${option.dataset.displayUsername})</span>
+        `;
+        submitBtn.disabled = false;
+    }
+
+    function updateSearchResults() {
+        const searchTerm = searchInput.value.trim().toLowerCase();
+        const searchWords = searchTerm.split(' ').filter(word => word.length > 0);
+
+        if (searchTerm === '') {
+            filteredOptions = [...memberOptions];
+            memberOptions.forEach(option => option.classList.remove('d-none'));
+            clearSearchBtn.style.display = 'none';
+            searchResults.textContent = memberOptions.length ? 'Ketik untuk mencari anggota...' : 'Semua anggota sudah absen.';
+            searchResults.className = 'small text-muted mb-2';
+            clearSelection();
+            return;
+        }
+
+        clearSelection();
+        filteredOptions = memberOptions.filter(option => {
+            const nama = option.dataset.nama || '';
+            const username = option.dataset.username || '';
+            const telepon = option.dataset.telepon || '';
+            const rt = option.dataset.rt || '';
+            const searchableText = `${nama} ${username} ${telepon} ${rt}`;
+            return searchWords.every(word => searchableText.includes(word));
+        });
+
+        memberOptions.forEach(option => {
+            option.classList.toggle('d-none', !filteredOptions.includes(option));
+        });
+
+        const resultCount = filteredOptions.length;
+        const totalCount = memberOptions.length;
+
+        if (resultCount === 0) {
+            searchResults.textContent = `Tidak ditemukan anggota dengan kata kunci "${searchTerm}"`;
+            searchResults.className = 'small text-danger mb-2';
+        } else if (resultCount === 1) {
+            searchResults.textContent = 'Ditemukan 1 anggota dan sudah dipilih otomatis';
+            searchResults.className = 'small text-success mb-2';
+            selectMember(filteredOptions[0]);
+        } else {
+            searchResults.textContent = `Ditemukan ${resultCount} dari ${totalCount} anggota. Klik nama untuk memilih.`;
+            searchResults.className = 'small text-success mb-2';
+        }
+
+        clearSearchBtn.style.display = 'block';
+    }
+
+    memberOptions.forEach(option => {
+        option.addEventListener('click', function() {
+            selectMember(option);
+        });
+    });
+
+    searchInput.addEventListener('input', updateSearchResults);
+    clearSearchBtn.addEventListener('click', function() {
+        searchInput.value = '';
+        updateSearchResults();
+        searchInput.focus();
+    });
+
+    searchInput.addEventListener('keydown', function(e) {
+        if (e.key === 'ArrowDown' && filteredOptions.length) {
+            e.preventDefault();
+            filteredOptions[0].focus();
+        }
+
+        if (e.key === 'Escape') {
+            searchInput.value = '';
+            updateSearchResults();
+        }
+    });
+
+    form.addEventListener('submit', function(e) {
+        if (!userIdInput.value) {
+            e.preventDefault();
+            alert('Silakan pilih anggota terlebih dahulu!');
+            searchInput.focus();
+        }
+    });
+
+    updateSearchResults();
+    searchInput.focus();
+});
+</script>
+
 <style>
-    /* Additional styling untuk select dropdown yang lebih besar */
-    #user_id {
-        min-height: 200px;
-        max-height: 300px;
+    .member-list {
+        display: grid;
+        gap: 8px;
+        max-height: 320px;
         overflow-y: auto;
+        padding: 4px;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        background: #fff;
+    }
+
+    .member-option {
+        display: block;
+        width: 100%;
+        text-align: left;
+        border: 1px solid #e9ecef;
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 10px 12px;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+    }
+
+    .member-option:hover,
+    .member-option:focus {
+        border-color: var(--accent-blue);
+        background: #fff;
+        box-shadow: 0 0 0 0.2rem rgba(125, 160, 202, 0.16);
+        outline: none;
+    }
+
+    .member-option.selected {
+        border-color: #198754;
+        background: rgba(25, 135, 84, 0.08);
+        box-shadow: 0 0 0 0.2rem rgba(25, 135, 84, 0.12);
+    }
+
+    .member-name {
+        display: block;
+        color: #1f2937;
+        font-weight: 700;
+        line-height: 1.25;
+    }
+
+    .member-meta {
+        display: block;
+        color: #6c757d;
+        font-size: 0.875rem;
+        line-height: 1.35;
+        margin-top: 3px;
+    }
+
+    .selected-member {
+        border: 1px solid rgba(25, 135, 84, 0.3);
+        border-radius: 8px;
+        color: #146c43;
+        background: rgba(25, 135, 84, 0.08);
+        padding: 8px 10px;
     }
     
     /* Styling untuk search input group */
@@ -351,8 +530,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     /* Responsive adjustments */
     @media (max-width: 768px) {
-        #user_id {
-            min-height: 150px;
+        .member-list {
             max-height: 200px;
         }
         
@@ -376,7 +554,7 @@ document.addEventListener('DOMContentLoaded', function() {
             padding-right: 5px;
         }
         
-        #user_id {
+        .member-option {
             font-size: 14px;
         }
         

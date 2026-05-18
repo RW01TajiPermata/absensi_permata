@@ -12,6 +12,7 @@ import re
 import csv
 import string
 import random
+import os
 # Hapus import pytz, gunakan datetime biasa dengan penyesuaian
 
 app = Flask(__name__)
@@ -25,12 +26,14 @@ TIMEZONE_OFFSET = datetime.timedelta(hours=7)
 def get_db_connection():
     try:
         conn = mysql.connector.connect(
-            host='ls4zzp.h.filess.io',
-            user='absensi_permata_inventeddo',
-            password='542d71cd4aa005eba4c81953fc47384f599b315f',
-            database='absensi_permata_inventeddo',
+            host=os.environ.get('DB_HOST', 'ls4zzp.h.filess.io'),
+            user=os.environ.get('DB_USER', 'absensi_permata_inventeddo'),
+            password=os.environ.get('DB_PASSWORD', '542d71cd4aa005eba4c81953fc47384f599b315f'),
+            database=os.environ.get('DB_NAME', 'absensi_permata_inventeddo'),
             auth_plugin='mysql_native_password',
-            port='3307'
+            port=int(os.environ.get('DB_PORT', '3307')),
+            connection_timeout=10,
+            autocommit=False
         )
         return conn
     except mysql.connector.Error as err:
@@ -294,6 +297,83 @@ def validate_absen_access(event_id, absen_type, input_data):
         cursor.close()
         conn.close()
 
+def validate_absen_access_with_cursor(cursor, event_id, absen_type, input_data):
+    """
+    Validasi QR Code/Token memakai cursor yang sudah ada agar satu request
+    tidak membuka banyak koneksi database.
+    """
+    if absen_type == 'qr_code':
+        cursor.execute(""" 
+            SELECT id FROM qr_codes 
+            WHERE event_id = %s AND qr_code_data = %s AND expires_at > %s
+            LIMIT 1
+        """, (event_id, input_data, get_current_time()))
+        return cursor.fetchone() is not None
+
+    if absen_type == 'token':
+        cursor.execute(""" 
+            SELECT id FROM tokens 
+            WHERE event_id = %s AND token_data = %s AND expires_at > %s
+            LIMIT 1
+        """, (event_id, input_data, get_current_time()))
+        return cursor.fetchone() is not None
+
+    return False
+
+def save_absensi_atomic(conn, cursor, event_id, user_id, metode_absen, qr_code_used=None, token_used=None):
+    """
+    Simpan absensi secara atomic untuk mencegah race condition saat banyak
+    user submit bersamaan atau satu user menekan tombol beberapa kali.
+    """
+    lock_name = f"absensi:{event_id}:{user_id}"
+    lock_acquired = False
+
+    try:
+        cursor.execute("SELECT GET_LOCK(%s, 5) AS lock_status", (lock_name,))
+        lock_result = cursor.fetchone()
+        lock_acquired = bool(lock_result and lock_result.get('lock_status') == 1)
+
+        if not lock_acquired:
+            conn.rollback()
+            return 'busy'
+
+        cursor.execute("""
+            SELECT id FROM absensi
+            WHERE event_id = %s AND user_id = %s
+            LIMIT 1
+        """, (event_id, user_id))
+
+        if cursor.fetchone():
+            conn.rollback()
+            return 'exists'
+
+        cursor.execute("""
+            INSERT INTO absensi
+                (event_id, user_id, qr_code_used, token_used, metode_absen, waktu_absen)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (event_id, user_id, qr_code_used, token_used, metode_absen, get_current_time()))
+
+        conn.commit()
+        return 'inserted'
+
+    except mysql.connector.IntegrityError as err:
+        conn.rollback()
+        if err.errno == 1062:
+            return 'exists'
+        print(f"Integrity error saving absensi: {err}")
+        return 'error'
+    except Exception as err:
+        conn.rollback()
+        print(f"Error saving absensi atomically: {err}")
+        return 'error'
+    finally:
+        if lock_acquired:
+            try:
+                cursor.execute("SELECT RELEASE_LOCK(%s)", (lock_name,))
+                cursor.fetchone()
+            except Exception as release_err:
+                print(f"Error releasing absensi lock: {release_err}")
+
 # ===============================================
 # ROUTES UNTUK LUPA SANDI YANG DIPERBAIKI
 # ===============================================
@@ -458,12 +538,13 @@ def index():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    # Pastikan admin exists dengan password yang benar
-    ensure_admin_exists()
-    
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
+
+        # Bootstrap admin hanya saat akun admin login, bukan untuk semua user.
+        if username == 'admin':
+            ensure_admin_exists()
         
         print(f"Login attempt for: {username}")
         
@@ -1501,13 +1582,14 @@ def absen_manual(event_id):
         else:
             # Simpan absensi manual
             try:
-                current_time = get_current_time()
-                cursor.execute(
-                    "INSERT INTO absensi (event_id, user_id, metode_absen, waktu_absen) VALUES (%s, %s, 'manual', %s)",
-                    (event_id, user_id, current_time)
-                )
-                conn.commit()
-                flash('Absensi manual berhasil!', 'success')
+                save_result = save_absensi_atomic(conn, cursor, event_id, user_id, 'manual')
+
+                if save_result == 'inserted':
+                    flash('Absensi manual berhasil!', 'success')
+                elif save_result == 'exists':
+                    flash('User sudah melakukan absen untuk event ini!', 'warning')
+                else:
+                    flash('Server sedang sibuk. Silakan coba lagi beberapa detik.', 'warning')
                 
                 # Refresh list yang sudah absen
                 cursor.execute(""" 
@@ -1757,8 +1839,13 @@ def absen(event_id):
         conn.close()
         return redirect(url_for('user_dashboard'))
     
-    # Cek apakah sudah absen - PENAMBAHAN VALIDASI DOUBLE ABSEN
-    if sudah_absen(session['user_id'], event_id):
+    cursor.execute("""
+        SELECT id FROM absensi
+        WHERE user_id = %s AND event_id = %s
+        LIMIT 1
+    """, (session['user_id'], event_id))
+
+    if cursor.fetchone():
         flash('Anda sudah absen untuk event ini!', 'warning')
         cursor.close()
         conn.close()
@@ -1769,64 +1856,49 @@ def absen(event_id):
         
         # TIDAK ADA VALIDASI WAKTU EVENT LAGI - hanya validasi QR Code/Token saja
         
-        # DOUBLE CHECK: Cek lagi sebelum menyimpan untuk menghindari race condition
-        if sudah_absen(session['user_id'], event_id):
-            flash('Anda sudah absen untuk event ini!', 'warning')
-            cursor.close()
-            conn.close()
-            return redirect(url_for('user_events'))
-        
         if absen_type == 'qr_code':
             qr_code_input = request.form['qr_code']
             
             # Validasi QR code menggunakan fungsi baru
-            if not validate_absen_access(event_id, 'qr_code', qr_code_input):
+            if not validate_absen_access_with_cursor(cursor, event_id, 'qr_code', qr_code_input):
                 flash('QR Code tidak valid atau sudah expired!', 'error')
                 cursor.close()
                 conn.close()
                 return render_template('absen.html', event=event, is_admin=False)
             
-            # DOUBLE CHECK: Cek sekali lagi sebelum insert
-            cursor.execute("SELECT id FROM absensi WHERE user_id = %s AND event_id = %s", (session['user_id'], event_id))
-            existing_absen = cursor.fetchone()
-            
-            if existing_absen:
+            save_result = save_absensi_atomic(
+                conn, cursor, event_id, session['user_id'], 'qr_code', qr_code_used=qr_code_input
+            )
+
+            if save_result == 'inserted':
+                flash('Absensi berhasil disimpan!', 'success')
+            elif save_result == 'exists':
                 flash('Anda sudah absen untuk event ini!', 'warning')
             else:
-                # Simpan absensi QR code dengan waktu yang akurat
-                current_time = get_current_time()
-                cursor.execute(
-                    "INSERT INTO absensi (event_id, user_id, qr_code_used, metode_absen, waktu_absen) VALUES (%s, %s, %s, 'qr_code', %s)",
-                    (event_id, session['user_id'], qr_code_input, current_time)
-                )
-                conn.commit()
-                flash('✅ Absensi dengan QR Code berhasil!', 'success')
+                flash('Server sedang sibuk. Silakan coba lagi beberapa detik.', 'warning')
                 
         elif absen_type == 'token':
             token_input = request.form['token']
             
             # Validasi token menggunakan fungsi baru
-            if not validate_absen_access(event_id, 'token', token_input):
+            if not validate_absen_access_with_cursor(cursor, event_id, 'token', token_input):
                 flash('Token tidak valid atau sudah expired!', 'error')
                 cursor.close()
                 conn.close()
                 return render_template('absen.html', event=event, is_admin=False)
             
-            # DOUBLE CHECK: Cek sekali lagi sebelum insert
-            cursor.execute("SELECT id FROM absensi WHERE user_id = %s AND event_id = %s", (session['user_id'], event_id))
-            existing_absen = cursor.fetchone()
-            
-            if existing_absen:
+            save_result = save_absensi_atomic(
+                conn, cursor, event_id, session['user_id'], 'token', token_used=token_input
+            )
+
+            if save_result == 'inserted':
+                flash('Absensi berhasil disimpan!', 'success')
+            elif save_result == 'exists':
                 flash('Anda sudah absen untuk event ini!', 'warning')
             else:
-                # Simpan absensi token dengan waktu yang akurat
-                current_time = get_current_time()
-                cursor.execute(
-                    "INSERT INTO absensi (event_id, user_id, token_used, metode_absen, waktu_absen) VALUES (%s, %s, %s, 'token', %s)",
-                    (event_id, session['user_id'], token_input, current_time)
-                )
-                conn.commit()
-                flash('✅ Absensi dengan Token berhasil!', 'success')
+                flash('Server sedang sibuk. Silakan coba lagi beberapa detik.', 'warning')
+        else:
+            flash('Metode absensi tidak valid!', 'error')
         
         cursor.close()
         conn.close()

@@ -26,10 +26,10 @@ TIMEZONE_OFFSET = datetime.timedelta(hours=7)
 def get_db_connection():
     try:
         conn = mysql.connector.connect(
-            host=os.environ.get('DB_HOST', 'ls4zzp.h.filess.io'),
-            user=os.environ.get('DB_USER', 'absensi_permata_inventeddo'),
-            password=os.environ.get('DB_PASSWORD', '542d71cd4aa005eba4c81953fc47384f599b315f'),
-            database=os.environ.get('DB_NAME', 'absensi_permata_inventeddo'),
+            host=os.environ.get('DB_HOST', '7pb0rn.h.filess.io'),
+            user=os.environ.get('DB_USER', 'absensi_permata_hanganimal'),
+            password=os.environ.get('DB_PASSWORD', 'e677fcc8c2e8f3c3a26e6d57e465d36169ce7c1b'),
+            database=os.environ.get('DB_NAME', 'absensi_permata_hanganimal'),
             auth_plugin='mysql_native_password',
             port=int(os.environ.get('DB_PORT', '3307')),
             connection_timeout=10,

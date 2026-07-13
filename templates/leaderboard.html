@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Leaderboard Keaktifan - Absensi Permata{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-lg-9">
+        <div class="card leaderboard-page-card mb-4">
+            <div class="card-body text-center p-4">
+                <i class="fas fa-trophy fa-3x text-warning mb-3"></i>
+                <h2 class="mb-2">Leaderboard Keaktifan</h2>
+                <p class="text-muted mb-0">Menampilkan 10 anggota teraktif berdasarkan absensi yang berhasil tersimpan.</p>
+                <small class="text-muted d-block mt-2">Cari nama untuk melihat anggota di luar 10 besar. Tekan nama peringkat 1, 2, atau 3 untuk memberi apresiasi.</small>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="fas fa-ranking-star me-2 text-primary"></i>Peringkat Anggota</h5>
+            </div>
+            <div class="card-body">
+                {% if leaderboard %}
+                    <div class="search-panel mb-4 pb-3 border-bottom">
+                        <label for="member-search" class="form-label fw-bold">Cari posisi anggota</label>
+                        <div class="input-group input-group-lg">
+                            <span class="input-group-text"><i class="fas fa-search"></i></span>
+                            <input id="member-search" class="form-control" type="search" placeholder="Ketik nama, username, atau nomor peringkat" autocomplete="off">
+                        </div>
+                        <p class="small text-muted mb-0 mt-2" id="search-status">Menampilkan 10 besar. Cari untuk melihat posisi anggota lain.</p>
+                    </div>
+                    <div class="leaderboard-full-list" id="leaderboard-list">
+                        {% for anggota in leaderboard %}
+                        <div class="leaderboard-full-item {% if anggota.id == session.user_id %}leaderboard-current-user{% endif %}" data-search="{{ anggota.nama_lengkap|lower }} {{ anggota.username|lower }} {{ anggota.peringkat }}" data-top-ten="{{ 'true' if anggota.peringkat <= 10 else 'false' }}"{% if anggota.peringkat > 10 %} hidden{% endif %}>
+                            <span class="full-rank full-rank-{{ anggota.peringkat }}">
+                                {% if anggota.peringkat == 1 %}<i class="fas fa-crown"></i>{% else %}{{ anggota.peringkat }}{% endif %}
+                            </span>
+                            <span class="full-avatar">{{ anggota.nama_lengkap[0]|upper }}</span>
+                            <div class="flex-grow-1 min-width-0">
+                                {% if anggota.peringkat <= 3 %}
+                                <button type="button" class="celebration-trigger leaderboard-name" aria-label="Rayakan peringkat {{ anggota.peringkat }}">
+                                    {{ anggota.nama_lengkap }} <i class="fas fa-star"></i>
+                                </button>
+                                {% else %}
+                                <strong>{{ anggota.nama_lengkap }}</strong>
+                                {% endif %}
+                                <small class="text-muted d-block">@{{ anggota.username }}{% if anggota.id == session.user_id %} - Anda{% endif %}</small>
+                            </div>
+                            <span class="full-attendance">{{ anggota.total_absensi }}<small>x hadir</small></span>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                {% else %}
+                    <div class="text-center py-4 text-muted">Belum ada anggota untuk ditampilkan.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const search = document.getElementById('member-search');
+    const items = Array.from(document.querySelectorAll('.leaderboard-full-item'));
+    const status = document.getElementById('search-status');
+    if (!search) return;
+
+    search.addEventListener('input', function () {
+        const keyword = search.value.trim().toLowerCase();
+        let found = 0;
+        items.forEach(function (item) {
+            const match = keyword ? item.dataset.search.includes(keyword) : item.dataset.topTen === 'true';
+            item.hidden = !match;
+            if (match) found++;
+        });
+        status.textContent = keyword ? (found ? found + ' anggota ditemukan.' : 'Anggota tidak ditemukan.') : 'Menampilkan 10 besar. Cari untuk melihat posisi anggota lain.';
+    });
+});
+</script>
+<style>
+.leaderboard-page-card { background: linear-gradient(135deg, #edf6ff, #fff8dd); }
+.leaderboard-full-item { display: flex; align-items: center; gap: .8rem; padding: .85rem .5rem; border-bottom: 1px solid #edf0f2; }
+.leaderboard-full-item:last-child { border-bottom: 0; }
+.leaderboard-current-user { margin: 0 -.25rem; padding-left: .75rem; padding-right: .75rem; background: #eaf4ff; border-radius: 12px; }
+.full-rank, .full-avatar { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; font-weight: 700; }
+.full-rank { width: 34px; height: 34px; background: #e9ecef; }
+.full-rank-1 { color: #6b4e00; background: #ffc107; }.full-rank-2 { background: #d7dde3; }.full-rank-3 { color: #59340f; background: #dca36a; }
+.full-avatar { width: 42px; height: 42px; color: #fff; background: #527eaf; }
+.full-attendance { min-width: 60px; color: #198754; font-size: 1.15rem; font-weight: 700; text-align: right; }.full-attendance small { display: block; color: #6c757d; font-size: .68rem; font-weight: 400; }
+.min-width-0 { min-width: 0; }
+.leaderboard-name { border: 0; padding: 0; background: transparent; color: inherit; font-weight: 700; text-align: left; }.leaderboard-name:hover { color: #0d6efd; text-decoration: underline; }
+@media (max-width: 576px) { .leaderboard-full-item { gap: .55rem; padding: .7rem .1rem; }.full-rank { width: 30px; height: 30px; }.full-avatar { width: 36px; height: 36px; }.full-attendance { min-width: 49px; font-size: 1rem; }.leaderboard-page-card .card-body { padding: 1.25rem !important; } }
+</style>
+{% endblock %}

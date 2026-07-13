@@ -10,12 +10,23 @@
                     <i class="fas fa-user-circle me-1"></i>Selamat datang, {{ session.nama_lengkap }}
                 </p>
 
-                </p>
-                <!-- Tambahan teks baru -->
+                <!-- Pesan motivasi kehadiran -->
                 <p class="mt-3 mb-0 small text-info">
                    Anggap saja setiap kehadiranmu di kegiatan Permata adalah investasi kecil. Hasilnya? Subsidi untuk seragam, acara rekreasi, dan lainnya! Rajin hadir = dompet tersenyum. 😄
                 </p>
             </div>
+        </div>
+    </div>
+</div>
+
+<div class="alert alert-warning border-0 shadow-sm mb-4" role="alert">
+    <div class="d-flex align-items-start">
+        <i class="fas fa-exclamation-circle fa-lg me-3 mt-1"></i>
+        <div>
+            <strong>Pastikan absensi benar-benar masuk.</strong>
+            Setelah menekan tombol absen, tunggu sampai muncul notifikasi <strong class="text-success">hijau</strong> bertuliskan
+            <strong>&quot;Absensi berhasil disimpan! Data Anda sudah masuk.&quot;</strong>
+            Jika notifikasi berhasil belum muncul, data belum tercatat. Kehadiran yang tidak tercatat dapat mengurangi jumlah absensi dan memengaruhi subsidi Anda.
         </div>
     </div>
 </div>
@@ -119,6 +130,63 @@
     </div>
 </div>
 
+<div class="row">
+    <div class="col-12 mb-4">
+        <div class="card leaderboard-card">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h5 class="mb-0"><i class="fas fa-trophy me-2 text-warning"></i>Leaderboard Keaktifan</h5>
+                <span class="badge rounded-pill text-bg-light">Berdasarkan total absensi berhasil</span>
+            </div>
+            <div class="card-body">
+                <div class="my-activity mb-3">
+                    <div>
+                        <small class="text-muted d-block">Posisi Anda saat ini</small>
+                        <strong class="fs-4">#{{ peringkat_saya or '-' }}</strong>
+                    </div>
+                    <div class="text-end">
+                        <small class="text-muted d-block">Total kehadiran</small>
+                        <strong class="fs-4">{{ total_absensi_saya }}</strong>
+                    </div>
+                </div>
+
+                {% if leaderboard %}
+                    <div class="leaderboard-list">
+                        {% for anggota in leaderboard %}
+                        <div class="leaderboard-item {% if anggota.id == session.user_id %}leaderboard-me{% endif %}">
+                            <span class="rank rank-{{ anggota.peringkat }}">
+                                {% if anggota.peringkat == 1 %}<i class="fas fa-crown"></i>{% else %}{{ anggota.peringkat }}{% endif %}
+                            </span>
+                            <span class="avatar">{{ anggota.nama_lengkap[0]|upper }}</span>
+                            <div class="flex-grow-1 min-width-0">
+                                {% if anggota.peringkat <= 3 %}
+                                <button type="button" class="celebration-trigger leaderboard-name" aria-label="Rayakan peringkat {{ anggota.peringkat }}">
+                                    {{ anggota.nama_lengkap }} <i class="fas fa-star"></i>
+                                </button>
+                                {% else %}
+                                <strong>{{ anggota.nama_lengkap }}</strong>
+                                {% endif %}
+                                {% if anggota.id == session.user_id %}<span class="badge bg-primary ms-1">Anda</span>{% endif %}
+                            </div>
+                            <span class="attendance-count"><i class="fas fa-check-circle me-1"></i>{{ anggota.total_absensi }} kali</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="d-grid mt-3">
+                        <a href="{{ url_for('user_leaderboard') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-trophy me-1"></i>Lihat Leaderboard Lengkap
+                        </a>
+                    </div>
+                {% else %}
+                    <div class="text-center py-3 text-muted">
+                        <i class="fas fa-trophy fa-2x mb-2"></i>
+                        <p class="mb-0">Leaderboard akan tampil setelah ada absensi yang berhasil dicatat.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
 <style>
 .event-card {
     transition: all 0.3s ease;
@@ -133,6 +201,23 @@
     max-height: 400px;
     overflow-y: auto;
 }
+
+.leaderboard-card { overflow: hidden; }
+.leaderboard-card .card-header { background: linear-gradient(135deg, #052659, #7DA0CA); color: #fff; }
+.my-activity { display: flex; justify-content: space-between; padding: .9rem 1rem; border-radius: 12px; background: #f0f6ff; }
+.leaderboard-list { max-width: 760px; margin: 0 auto; }
+.leaderboard-item { display: flex; align-items: center; gap: .75rem; padding: .7rem .5rem; border-bottom: 1px solid #edf0f2; }
+.leaderboard-item:last-child { border-bottom: 0; }
+.leaderboard-me { background: #edf6ff; border-radius: 10px; padding-left: .6rem; padding-right: .6rem; }
+.rank { width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; font-weight: 700; background: #e9ecef; color: #495057; }
+.rank-1 { background: #ffc107; color: #5f4700; }
+.rank-2 { background: #d7dde3; color: #495057; }
+.rank-3 { background: #dca36a; color: #59340f; }
+.avatar { width: 36px; height: 36px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: #7DA0CA; color: #fff; font-weight: 700; }
+.min-width-0 { min-width: 0; }
+.attendance-count { color: #198754; font-weight: 600; white-space: nowrap; }
+.leaderboard-name { border: 0; padding: 0; background: transparent; color: inherit; font-weight: 700; text-align: left; }
+.leaderboard-name:hover { color: #0d6efd; text-decoration: underline; }
 
 /* Mobile optimizations */
 @media (max-width: 768px) {

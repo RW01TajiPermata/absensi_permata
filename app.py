@@ -779,6 +779,75 @@ def admin_dashboard():
                          events_hari_ini=events_hari_ini,
                          pendaftaran_aktif=pendaftaran_aktif)
 
+@app.route('/admin/rekapitulasi')
+def rekapitulasi_absensi():
+    if 'user_id' not in session or session['role'] != 'admin':
+        return redirect(url_for('login'))
+
+    conn = get_db_connection()
+    if not conn:
+        flash('Koneksi database gagal!', 'error')
+        return render_template('rekapitulasi.html', anggota=[], anggota_terpilih=None,
+                               event_hadir=[], event_tidak_hadir=[], total_event=0)
+
+    cursor = conn.cursor(dictionary=True)
+    try:
+        # Rekap dibatasi pada event yang dibuat oleh admin yang sedang masuk.
+        cursor.execute("""
+            SELECT u.id, u.nama_lengkap, u.username, COUNT(e.id) AS total_hadir
+            FROM users u
+            LEFT JOIN absensi a ON a.user_id = u.id
+            LEFT JOIN events e ON e.id = a.event_id AND e.created_by = %s
+            WHERE u.role = 'user'
+            GROUP BY u.id, u.nama_lengkap, u.username
+            ORDER BY u.nama_lengkap ASC
+        """, (session['user_id'],))
+        anggota = cursor.fetchall()
+
+        cursor.execute("""
+            SELECT COUNT(*) AS total FROM events
+            WHERE created_by = %s AND tanggal_event <= %s
+        """, (session['user_id'], get_current_date()))
+        total_event = cursor.fetchone()['total']
+
+        requested_user_id = request.args.get('user_id', type=int)
+        anggota_terpilih = next((item for item in anggota if item['id'] == requested_user_id), None)
+        if not anggota_terpilih and anggota:
+            anggota_terpilih = anggota[0]
+
+        event_hadir = []
+        event_tidak_hadir = []
+        if anggota_terpilih:
+            cursor.execute("""
+                SELECT e.id, e.nama_event, e.tanggal_event, e.waktu_event, e.lokasi,
+                       a.waktu_absen
+                FROM events e
+                LEFT JOIN absensi a ON a.event_id = e.id AND a.user_id = %s
+                WHERE e.created_by = %s AND e.tanggal_event <= %s
+                ORDER BY e.tanggal_event DESC, e.waktu_event DESC
+            """, (anggota_terpilih['id'], session['user_id'], get_current_date()))
+            for event in cursor.fetchall():
+                if event['waktu_absen']:
+                    event_hadir.append(event)
+                else:
+                    event_tidak_hadir.append(event)
+
+            anggota_terpilih['total_hadir'] = len(event_hadir)
+            anggota_terpilih['total_tidak_hadir'] = len(event_tidak_hadir)
+    except Exception as err:
+        print(f"Error rekapitulasi absensi: {err}")
+        flash('Gagal memuat rekapitulasi absensi.', 'error')
+        anggota, anggota_terpilih, event_hadir, event_tidak_hadir, total_event = [], None, [], [], 0
+    finally:
+        cursor.close()
+        conn.close()
+
+    return render_template('rekapitulasi.html', anggota=anggota,
+                           anggota_terpilih=anggota_terpilih,
+                           event_hadir=event_hadir,
+                           event_tidak_hadir=event_tidak_hadir,
+                           total_event=total_event)
+
 # ROUTE BARU: Kontrol Pendaftaran
 @app.route('/admin/kontrol-pendaftaran', methods=['GET', 'POST'])
 def kontrol_pendaftaran():
@@ -1757,7 +1826,10 @@ def user_dashboard():
         flash('Koneksi database gagal!', 'error')
         return render_template('user_dashboard.html',
                              events_akan_datang=[],
-                             riwayat_absen=[])
+                             riwayat_absen=[],
+                             leaderboard=[],
+                             total_absensi_saya=0,
+                             peringkat_saya=None)
         
     cursor = conn.cursor(dictionary=True)
     
@@ -1780,13 +1852,83 @@ def user_dashboard():
         LIMIT 10
     """, (session['user_id'],))
     riwayat_absen = cursor.fetchall()
+
+    # Leaderboard dihitung dari seluruh absensi yang berhasil tersimpan.
+    # Satu anggota hanya dapat tercatat sekali pada setiap event.
+    cursor.execute("""
+        SELECT u.id, u.nama_lengkap, u.username, COUNT(a.id) AS total_absensi
+        FROM users u
+        JOIN absensi a ON a.user_id = u.id
+        WHERE u.role = 'user'
+        GROUP BY u.id, u.nama_lengkap, u.username
+        ORDER BY total_absensi DESC, u.nama_lengkap ASC
+        LIMIT 10
+    """)
+    leaderboard = cursor.fetchall()
+    for peringkat, anggota in enumerate(leaderboard, start=1):
+        anggota['peringkat'] = peringkat
+
+    cursor.execute("""
+        SELECT COUNT(*) AS total_absensi
+        FROM absensi
+        WHERE user_id = %s
+    """, (session['user_id'],))
+    total_absensi_saya = cursor.fetchone()['total_absensi']
+
+    # Hitung posisi pengguna terhadap anggota lain tanpa window function MySQL.
+    cursor.execute("""
+        SELECT u.id, COUNT(a.id) AS total_absensi
+        FROM users u
+        LEFT JOIN absensi a ON a.user_id = u.id
+        WHERE u.role = 'user'
+        GROUP BY u.id
+        ORDER BY total_absensi DESC, u.id ASC
+    """)
+    semua_peringkat = cursor.fetchall()
+    peringkat_saya = next(
+        (peringkat for peringkat, anggota in enumerate(semua_peringkat, start=1)
+         if anggota['id'] == session['user_id']),
+        None
+    )
     
     cursor.close()
     conn.close()
     
     return render_template('user_dashboard.html',
                          events_akan_datang=events_akan_datang,
-                         riwayat_absen=riwayat_absen)
+                         riwayat_absen=riwayat_absen,
+                         leaderboard=leaderboard,
+                         total_absensi_saya=total_absensi_saya,
+                         peringkat_saya=peringkat_saya)
+
+@app.route('/user/leaderboard')
+def user_leaderboard():
+    if 'user_id' not in session or session['role'] != 'user':
+        return redirect(url_for('login'))
+
+    conn = get_db_connection()
+    if not conn:
+        flash('Koneksi database gagal!', 'error')
+        return render_template('leaderboard.html', leaderboard=[])
+
+    cursor = conn.cursor(dictionary=True)
+    # Tampilkan seluruh anggota, termasuk yang belum memiliki absensi, agar
+    # mereka tetap dapat dicari dan mengetahui posisi keaktifannya.
+    cursor.execute("""
+        SELECT u.id, u.nama_lengkap, u.username, COUNT(a.id) AS total_absensi
+        FROM users u
+        LEFT JOIN absensi a ON a.user_id = u.id
+        WHERE u.role = 'user'
+        GROUP BY u.id, u.nama_lengkap, u.username
+        ORDER BY total_absensi DESC, u.nama_lengkap ASC
+    """)
+    leaderboard = cursor.fetchall()
+    for peringkat, anggota in enumerate(leaderboard, start=1):
+        anggota['peringkat'] = peringkat
+
+    cursor.close()
+    conn.close()
+    return render_template('leaderboard.html', leaderboard=leaderboard)
 
 @app.route('/user/events')
 def user_events():
@@ -1871,7 +2013,7 @@ def absen(event_id):
             )
 
             if save_result == 'inserted':
-                flash('Absensi berhasil disimpan!', 'success')
+                flash('Absensi berhasil disimpan! Data Anda sudah masuk.', 'success')
             elif save_result == 'exists':
                 flash('Anda sudah absen untuk event ini!', 'warning')
             else:
@@ -1892,7 +2034,7 @@ def absen(event_id):
             )
 
             if save_result == 'inserted':
-                flash('Absensi berhasil disimpan!', 'success')
+                flash('Absensi berhasil disimpan! Data Anda sudah masuk.', 'success')
             elif save_result == 'exists':
                 flash('Anda sudah absen untuk event ini!', 'warning')
             else:

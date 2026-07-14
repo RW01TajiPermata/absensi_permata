@@ -18,6 +18,15 @@ import os
 app = Flask(__name__)
 app.secret_key = 'absensi-permata-secret-key-2024'
 
+@app.after_request
+def prevent_stale_privacy_pages(response):
+    """Jangan izinkan browser menyimpan halaman user yang memuat data leaderboard."""
+    if request.endpoint in {'user_dashboard', 'user_leaderboard'}:
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
+
 # KONFIGURASI TIMEZONE TANPA PYTZ
 # Untuk Indonesia (UTC+7), kita tambahkan 7 jam ke waktu UTC
 TIMEZONE_OFFSET = datetime.timedelta(hours=7)

@@ -15,7 +15,7 @@
                    Anggap saja setiap kehadiranmu di kegiatan Permata adalah investasi kecil. Hasilnya? Subsidi untuk seragam, acara rekreasi, dan lainnya! Rajin hadir = dompet tersenyum. 😄
                 </p>
             </div>
-        </div>
+        </div>ac
     </div>
 </div>
 
@@ -27,6 +27,41 @@
             Setelah menekan tombol absen, tunggu sampai muncul notifikasi <strong class="text-success">hijau</strong> bertuliskan
             <strong>&quot;Absensi berhasil disimpan! Data Anda sudah masuk.&quot;</strong>
             Jika notifikasi berhasil belum muncul, data belum tercatat. Kehadiran yang tidak tercatat dapat mengurangi jumlah absensi dan memengaruhi subsidi Anda.
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12 mb-4">
+        <div class="card leaderboard-card">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h5 class="mb-0"><i class="fas fa-trophy me-2 text-warning"></i>Leaderboard Keaktifan</h5>
+                <span class="badge rounded-pill text-bg-light">Berdasarkan total absensi berhasil</span>
+            </div>
+            <div class="card-body">
+                <div class="my-activity mb-3">
+                    <div><small class="text-muted d-block">Posisi Anda saat ini</small><strong class="fs-4">#{{ peringkat_saya or '-' }}</strong></div>
+                    <div class="text-end"><small class="text-muted d-block">Total kehadiran</small><strong class="fs-4">{{ total_absensi_saya }}</strong></div>
+                </div>
+                {% if leaderboard %}
+                    <div class="leaderboard-list">
+                        {% for anggota in leaderboard %}
+                        <div class="leaderboard-item {% if anggota.id == session.user_id %}leaderboard-me{% endif %}">
+                            <span class="rank rank-{{ anggota.peringkat }}">{% if anggota.peringkat == 1 %}<i class="fas fa-crown"></i>{% else %}{{ anggota.peringkat }}{% endif %}</span>
+                            <span class="avatar">{{ anggota.nama_lengkap[0]|upper }}</span>
+                            <div class="flex-grow-1 min-width-0">
+                                {% if anggota.peringkat <= 3 %}<button type="button" class="celebration-trigger leaderboard-name" aria-label="Rayakan peringkat {{ anggota.peringkat }}">{{ anggota.nama_lengkap }} <i class="fas fa-star"></i></button>{% else %}<strong>{{ anggota.nama_lengkap }}</strong>{% endif %}
+                                {% if anggota.id == session.user_id %}<span class="badge bg-primary ms-1">Anda</span>{% endif %}
+                            </div>
+                            <span class="attendance-count"><i class="fas fa-check-circle me-1"></i>{{ anggota.total_absensi }} kali</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="d-grid mt-3"><a href="{{ url_for('user_leaderboard') }}" class="btn btn-outline-primary"><i class="fas fa-trophy me-1"></i>Lihat Leaderboard Lengkap</a></div>
+                {% else %}
+                    <div class="text-center py-3 text-muted"><i class="fas fa-trophy fa-2x mb-2"></i><p class="mb-0">Leaderboard akan tampil setelah ada absensi yang berhasil dicatat.</p></div>
+                {% endif %}
+            </div>
         </div>
     </div>
 </div>
@@ -123,63 +158,6 @@
                     <div class="text-center py-4">
                         <i class="fas fa-clipboard-list fa-2x text-muted mb-3"></i>
                         <p class="text-muted mb-0">Belum ada riwayat absensi</p>
-                    </div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="row">
-    <div class="col-12 mb-4">
-        <div class="card leaderboard-card">
-            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <h5 class="mb-0"><i class="fas fa-trophy me-2 text-warning"></i>Leaderboard Keaktifan</h5>
-                <span class="badge rounded-pill text-bg-light">Berdasarkan total absensi berhasil</span>
-            </div>
-            <div class="card-body">
-                <div class="my-activity mb-3">
-                    <div>
-                        <small class="text-muted d-block">Posisi Anda saat ini</small>
-                        <strong class="fs-4">#{{ peringkat_saya or '-' }}</strong>
-                    </div>
-                    <div class="text-end">
-                        <small class="text-muted d-block">Total kehadiran</small>
-                        <strong class="fs-4">{{ total_absensi_saya }}</strong>
-                    </div>
-                </div>
-
-                {% if leaderboard %}
-                    <div class="leaderboard-list">
-                        {% for anggota in leaderboard %}
-                        <div class="leaderboard-item {% if anggota.id == session.user_id %}leaderboard-me{% endif %}">
-                            <span class="rank rank-{{ anggota.peringkat }}">
-                                {% if anggota.peringkat == 1 %}<i class="fas fa-crown"></i>{% else %}{{ anggota.peringkat }}{% endif %}
-                            </span>
-                            <span class="avatar">{{ anggota.nama_lengkap[0]|upper }}</span>
-                            <div class="flex-grow-1 min-width-0">
-                                {% if anggota.peringkat <= 3 %}
-                                <button type="button" class="celebration-trigger leaderboard-name" aria-label="Rayakan peringkat {{ anggota.peringkat }}">
-                                    {{ anggota.nama_lengkap }} <i class="fas fa-star"></i>
-                                </button>
-                                {% else %}
-                                <strong>{{ anggota.nama_lengkap }}</strong>
-                                {% endif %}
-                                {% if anggota.id == session.user_id %}<span class="badge bg-primary ms-1">Anda</span>{% endif %}
-                            </div>
-                            <span class="attendance-count"><i class="fas fa-check-circle me-1"></i>{{ anggota.total_absensi }} kali</span>
-                        </div>
-                        {% endfor %}
-                    </div>
-                    <div class="d-grid mt-3">
-                        <a href="{{ url_for('user_leaderboard') }}" class="btn btn-outline-primary">
-                            <i class="fas fa-trophy me-1"></i>Lihat Leaderboard Lengkap
-                        </a>
-                    </div>
-                {% else %}
-                    <div class="text-center py-3 text-muted">
-                        <i class="fas fa-trophy fa-2x mb-2"></i>
-                        <p class="mb-0">Leaderboard akan tampil setelah ada absensi yang berhasil dicatat.</p>
                     </div>
                 {% endif %}
             </div>

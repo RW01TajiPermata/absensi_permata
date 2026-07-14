@@ -30,20 +30,20 @@
                     </div>
                     <div class="leaderboard-full-list" id="leaderboard-list">
                         {% for anggota in leaderboard %}
-                        <div class="leaderboard-full-item {% if anggota.id == session.user_id %}leaderboard-current-user{% endif %}" data-search="{{ anggota.nama_lengkap|lower }} {{ anggota.username|lower }} {{ anggota.peringkat }}" data-top-ten="{{ 'true' if anggota.peringkat <= 10 else 'false' }}"{% if anggota.peringkat > 10 %} hidden{% endif %}>
+                        <div class="leaderboard-full-item {% if anggota.id == session.user_id %}leaderboard-current-user{% endif %}" data-search="{{ anggota.kata_pencarian }}" data-top-ten="{{ 'true' if anggota.peringkat <= 10 else 'false' }}"{% if anggota.peringkat > 10 %} hidden{% endif %}>
                             <span class="full-rank full-rank-{{ anggota.peringkat }}">
                                 {% if anggota.peringkat == 1 %}<i class="fas fa-crown"></i>{% else %}{{ anggota.peringkat }}{% endif %}
                             </span>
-                            <span class="full-avatar">{{ anggota.nama_lengkap[0]|upper }}</span>
+                            <span class="full-avatar">{{ anggota.nama_tampil[0]|upper }}</span>
                             <div class="flex-grow-1 min-width-0">
                                 {% if anggota.peringkat <= 3 %}
                                 <button type="button" class="celebration-trigger leaderboard-name" aria-label="Rayakan peringkat {{ anggota.peringkat }}">
-                                    {{ anggota.nama_lengkap }} <i class="fas fa-star"></i>
+                                    {{ anggota.nama_tampil }} <i class="fas fa-star"></i>
                                 </button>
                                 {% else %}
-                                <strong>{{ anggota.nama_lengkap }}</strong>
+                                <strong>{{ anggota.nama_tampil }}</strong>
                                 {% endif %}
-                                <small class="text-muted d-block">@{{ anggota.username }}{% if anggota.id == session.user_id %} - Anda{% endif %}</small>
+                                {% if anggota.id == session.user_id %}<small class="text-muted d-block">@{{ anggota.username_tampil }} - Anda</small>{% endif %}
                             </div>
                             <span class="full-attendance">{{ anggota.total_absensi }}<small>x hadir</small></span>
                         </div>

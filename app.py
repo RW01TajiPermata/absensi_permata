@@ -2021,8 +2021,8 @@ def absen(event_id):
         
         # TIDAK ADA VALIDASI WAKTU EVENT LAGI - hanya validasi QR Code/Token saja
         
-        if absen_type == 'qr_code'
-            qr_code_input = request.form['qr_code']a
+        if absen_type == 'qr_code':
+            qr_code_input = request.form['qr_code']
             
             # Validasi QR code menggunakan fungsi baru
             if not validate_absen_access_with_cursor(cursor, event_id, 'qr_code', qr_code_input):

@@ -83,6 +83,27 @@ def format_datetime_for_db(dt):
     
     return dt_utc.strftime('%Y-%m-%d %H:%M:%S')
 
+def apply_leaderboard_privacy(leaderboard, current_user_id):
+    """Tambahkan data tampilan leaderboard tanpa membuka nama lengkap anggota lain."""
+    for anggota in leaderboard:
+        nama_lengkap = (anggota.get('nama_lengkap') or 'Anggota').strip()
+        bagian_nama = nama_lengkap.split()
+        nama_depan = bagian_nama[0] if bagian_nama else 'Anggota'
+        adalah_akun_sendiri = anggota['id'] == current_user_id
+
+        anggota['nama_tampil'] = (
+            nama_lengkap if adalah_akun_sendiri
+            else ' '.join([nama_depan] + ['*****'] * max(0, len(bagian_nama) - 1))
+        )
+        anggota['username_tampil'] = anggota['username'] if adalah_akun_sendiri else None
+        # Pencarian anggota lain hanya menggunakan nama depan atau peringkat,
+        # sehingga nama lengkap tidak terkirim ke elemen HTML.
+        anggota['kata_pencarian'] = (
+            f"{nama_lengkap.lower()} {anggota['username'].lower()} {anggota.get('peringkat', '')}"
+            if adalah_akun_sendiri else f"{nama_depan.lower()} {anggota.get('peringkat', '')}"
+        )
+    return leaderboard
+
 # Simple QR Manager dengan interval 2 menit
 class QRCodeManager:
     def __init__(self):
@@ -1867,6 +1888,7 @@ def user_dashboard():
     leaderboard = cursor.fetchall()
     for peringkat, anggota in enumerate(leaderboard, start=1):
         anggota['peringkat'] = peringkat
+    apply_leaderboard_privacy(leaderboard, session['user_id'])
 
     cursor.execute("""
         SELECT COUNT(*) AS total_absensi
@@ -1925,6 +1947,7 @@ def user_leaderboard():
     leaderboard = cursor.fetchall()
     for peringkat, anggota in enumerate(leaderboard, start=1):
         anggota['peringkat'] = peringkat
+    apply_leaderboard_privacy(leaderboard, session['user_id'])
 
     cursor.close()
     conn.close()

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Rekap Kehadiran - Absensi Permata{% endblock %}
+{% block content %}
+<section class="member-shell recap-screen">
+    <header class="member-greeting"><div><p>Selamat pagi,</p><h1>{{ session.nama_lengkap }}</h1><time>{{ tanggal_hari_ini }}</time></div><details class="profile-menu"><summary class="profile-initials" aria-label="Menu akun">{{ session.nama_lengkap[:2]|upper }}</summary><div class="profile-popover"><strong>{{ session.nama_lengkap }}</strong><small>Menu akun</small><a href="{{ url_for('logout') }}"><i class="fas fa-right-from-bracket"></i> Keluar / ganti akun</a></div></details></header>
+    <section class="member-section"><h2>Sejak bergabung</h2><div class="member-stats"><div><strong>{{ total_events }}</strong><span>Total Event</span></div><div class="present"><strong>{{ total_hadir }}</strong><span>Hadir</span></div><div class="absent"><strong>{{ total_tidak_hadir }}</strong><span>Tidak Hadir</span></div></div>
+        {% set percentage = ((total_hadir / total_events * 100) if total_events else 0)|round|int %}
+        <div class="attendance-progress" aria-label="Tingkat kehadiran {{ percentage }} persen"><span style="width: {{ percentage }}%"></span></div><p class="attendance-caption">Tingkat kehadiran <strong>{{ percentage }}%</strong> dari seluruh event yang pernah diadakan</p>
+    </section>
+    <section class="member-section recap-history"><h2>Riwayat absensi</h2>
+        {% for event in rekap_event %}
+        <article class="recap-row">
+            <span class="recap-status {{ 'hadir' if event.hadir else 'tidak-hadir' }}"><i class="fas {{ 'fa-h' if event.hadir else 'fa-a' }}"></i></span>
+            <span class="recap-name"><strong>{{ event.nama_event }}</strong><small>{{ 'Hadir tercatat' if event.hadir else 'Tidak hadir' }}</small></span>
+            <time>{{ event.tanggal_event.strftime('%d %b %Y') if event.tanggal_event else '' }}</time>
+        </article>
+        {% else %}<p class="empty-copy">Belum ada event untuk direkap.</p>{% endfor %}
+    </section>
+</section>
+{% endblock %}

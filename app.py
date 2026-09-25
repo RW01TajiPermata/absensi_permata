@@ -1906,7 +1906,7 @@ def user_dashboard():
         JOIN events e ON a.event_id = e.id 
         WHERE a.user_id = %s 
         ORDER BY e.tanggal_event DESC, e.waktu_event DESC
-        LIMIT 10
+        LIMIT 5
     """, (session['user_id'],))
     riwayat_absen = cursor.fetchall()
 

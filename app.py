@@ -21,7 +21,7 @@ app.secret_key = 'absensi-permata-secret-key-2024'
 @app.after_request
 def prevent_stale_privacy_pages(response):
     """Jangan izinkan browser menyimpan halaman user yang memuat data leaderboard."""
-    if request.endpoint in {'user_dashboard', 'user_leaderboard'}:
+    if request.endpoint in {'user_dashboard', 'user_leaderboard', 'user_rekap'}:
         response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
@@ -58,6 +58,14 @@ def get_current_time():
 def get_current_date():
     """Mendapatkan tanggal saat ini dengan timezone Indonesia"""
     return get_current_time().date()
+
+def format_tanggal_indonesia(tanggal):
+    """Tampilkan tanggal dengan nama bulan Indonesia, misalnya 25 September 2026."""
+    nama_bulan = (
+        'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    )
+    return f'{tanggal.day} {nama_bulan[tanggal.month - 1]} {tanggal.year}'
 
 def format_datetime_for_display(dt):
     """Format datetime untuk display"""
@@ -100,6 +108,8 @@ def apply_leaderboard_privacy(leaderboard, current_user_id):
         nama_depan = bagian_nama[0] if bagian_nama else 'Anggota'
         adalah_akun_sendiri = anggota['id'] == current_user_id
 
+        # Nama lengkap hanya boleh tampil pada akun yang sedang login.
+        # Anggota lain hanya terlihat nama depan dengan nama sisanya disamarkan.
         anggota['nama_tampil'] = (
             nama_lengkap if adalah_akun_sendiri
             else ' '.join([nama_depan] + ['*****'] * max(0, len(bagian_nama) - 1))
@@ -1859,7 +1869,10 @@ def user_dashboard():
                              riwayat_absen=[],
                              leaderboard=[],
                              total_absensi_saya=0,
-                             peringkat_saya=None)
+                             peringkat_saya=None,
+                             total_events=0,
+                             total_tidak_hadir=0,
+                             tanggal_hari_ini=format_tanggal_indonesia(get_current_date()))
         
     cursor = conn.cursor(dictionary=True)
     
@@ -1906,6 +1919,10 @@ def user_dashboard():
     """, (session['user_id'],))
     total_absensi_saya = cursor.fetchone()['total_absensi']
 
+    cursor.execute("SELECT COUNT(*) AS total_events FROM events WHERE tanggal_event <= %s", (get_current_date(),))
+    total_events = cursor.fetchone()['total_events']
+    total_tidak_hadir = max(0, total_events - total_absensi_saya)
+
     # Hitung posisi pengguna terhadap anggota lain tanpa window function MySQL.
     cursor.execute("""
         SELECT u.id, COUNT(a.id) AS total_absensi
@@ -1930,7 +1947,10 @@ def user_dashboard():
                          riwayat_absen=riwayat_absen,
                          leaderboard=leaderboard,
                          total_absensi_saya=total_absensi_saya,
-                         peringkat_saya=peringkat_saya)
+                         peringkat_saya=peringkat_saya,
+                         total_events=total_events,
+                         total_tidak_hadir=total_tidak_hadir,
+                         tanggal_hari_ini=format_tanggal_indonesia(get_current_date()))
 
 @app.route('/user/leaderboard')
 def user_leaderboard():
@@ -1958,9 +1978,48 @@ def user_leaderboard():
         anggota['peringkat'] = peringkat
     apply_leaderboard_privacy(leaderboard, session['user_id'])
 
+    cursor.execute("SELECT COUNT(*) AS total_events FROM events WHERE tanggal_event <= %s", (get_current_date(),))
+    total_events = cursor.fetchone()['total_events']
+    for anggota in leaderboard:
+        anggota['persentase_kehadiran'] = round((anggota['total_absensi'] / total_events) * 100) if total_events else 0
+
     cursor.close()
     conn.close()
-    return render_template('leaderboard.html', leaderboard=leaderboard)
+    return render_template('leaderboard.html', leaderboard=leaderboard,
+                           total_events=total_events,
+                           tanggal_hari_ini=format_tanggal_indonesia(get_current_date()))
+
+@app.route('/user/rekap')
+def user_rekap():
+    """Rekap privat anggota: tidak mengirim waktu absensi ke halaman user."""
+    if 'user_id' not in session or session['role'] != 'user':
+        return redirect(url_for('login'))
+
+    conn = get_db_connection()
+    if not conn:
+        flash('Koneksi database gagal!', 'error')
+        return render_template('user_rekap.html', rekap_event=[], total_events=0,
+                               total_hadir=0, total_tidak_hadir=0,
+                               tanggal_hari_ini=format_tanggal_indonesia(get_current_date()))
+
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT e.nama_event, e.tanggal_event,
+               CASE WHEN a.id IS NULL THEN 0 ELSE 1 END AS hadir
+        FROM events e
+        LEFT JOIN absensi a ON a.event_id = e.id AND a.user_id = %s
+        WHERE e.tanggal_event <= %s
+        ORDER BY e.tanggal_event DESC, e.id DESC
+    """, (session['user_id'], get_current_date()))
+    rekap_event = cursor.fetchall()
+    total_events = len(rekap_event)
+    total_hadir = sum(event['hadir'] for event in rekap_event)
+    cursor.close()
+    conn.close()
+    return render_template('user_rekap.html', rekap_event=rekap_event,
+                           total_events=total_events, total_hadir=total_hadir,
+                           total_tidak_hadir=total_events - total_hadir,
+                           tanggal_hari_ini=format_tanggal_indonesia(get_current_date()))
 
 @app.route('/user/events')
 def user_events():

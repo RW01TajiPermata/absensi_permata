@@ -479,6 +479,7 @@ body.guest-app a, body.admin-app a { color: #44c6ad; } body.guest-app a:hover, b
 body.guest-app .text-muted, body.admin-app .text-muted, body.guest-app .text-gray-800 { color: #9dc9c0 !important; }
 body.admin-app .table { color: #eaf5f0; } body.admin-app .table td { border-color: #294039; } body.admin-app .table th { background: #123f35; } body.admin-app .table-hover tbody tr:hover { color: #fff; background: #17352d; }
 body.admin-app .modal-content { background: #101d19; color: #eff8f4; border-color: #315047; } body.admin-app .modal-footer { border-color: #294039; }
+body.admin-app .modal-header { background: linear-gradient(135deg, #123f35, #176f60) !important; color: #f5fbf8; border-bottom-color: #397a6c; }
 body.admin-app .alert, body.guest-app .alert { color: #eff8f4; background: #17352d; border-left-color: #10a38a; }
 
 /* Hilangkan warna Bootstrap lama pada area admin. */

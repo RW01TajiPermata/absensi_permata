@@ -2,7 +2,7 @@
 {% block title %}Beranda - Absensi Permata{% endblock %}
 {% block content %}
 <section class="member-shell">
-    <header class="member-greeting"><div><p>Selamat pagi,</p><h1>{{ session.nama_lengkap }}</h1><time>{{ tanggal_hari_ini }}</time></div><details class="profile-menu"><summary class="profile-initials" aria-label="Menu akun">{{ session.nama_lengkap[:2]|upper }}</summary><div class="profile-popover"><strong>{{ session.nama_lengkap }}</strong><small>Menu akun</small><a href="{{ url_for('logout') }}"><i class="fas fa-right-from-bracket"></i> Keluar / ganti akun</a></div></details></header>
+    <header class="member-greeting"><div><p>{{ sapaan_waktu }}</p><h1>{{ session.nama_lengkap }}</h1><time>{{ tanggal_hari_ini }}</time></div><details class="profile-menu"><summary class="profile-initials" aria-label="Menu akun">{{ session.nama_lengkap[:2]|upper }}</summary><div class="profile-popover"><strong>{{ session.nama_lengkap }}</strong><small>Menu akun</small><a href="{{ url_for('logout') }}"><i class="fas fa-right-from-bracket"></i> Keluar / ganti akun</a></div></details></header>
     <section class="member-section attendance-today"><h2>Absensi hari ini</h2>
         {% if events_akan_datang %}{% set event = events_akan_datang[0] %}
         <article class="open-session"><small>{{ event.nama_event }}</small><h3>Sesi Absen Sedang Dibuka</h3><p><i class="fas fa-location-dot"></i> {{ event.lokasi }}</p><div class="session-action"><span><small>Jadwal</small><strong>{{ event.waktu_event }}</strong></span><a href="{{ url_for('absen', event_id=event.id) }}">Absen Sekarang</a></div></article>

@@ -59,6 +59,20 @@ def get_current_date():
     """Mendapatkan tanggal saat ini dengan timezone Indonesia"""
     return get_current_time().date()
 
+def get_sapaan_waktu():
+    """Sapaan berdasarkan waktu Indonesia: pagi 05:00–13:00, sore 13:01–18:00."""
+    sekarang = get_current_time()
+    menit = sekarang.hour * 60 + sekarang.minute
+    if 5 * 60 <= menit <= 13 * 60:
+        return 'Selamat pagi,'
+    if 13 * 60 < menit <= 18 * 60:
+        return 'Selamat sore,'
+    return 'Selamat malam,'
+
+@app.context_processor
+def inject_template_utilities():
+    return {'sapaan_waktu': get_sapaan_waktu()}
+
 def format_tanggal_indonesia(tanggal):
     """Tampilkan tanggal dengan nama bulan Indonesia, misalnya 25 September 2026."""
     nama_bulan = (

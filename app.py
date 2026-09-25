@@ -1901,11 +1901,11 @@ def user_dashboard():
     
     # Riwayat absensi user
     cursor.execute(""" 
-        SELECT e.nama_event, e.tanggal_event, e.waktu_event, a.waktu_absen, a.metode_absen
+        SELECT e.nama_event, e.tanggal_event
         FROM absensi a 
         JOIN events e ON a.event_id = e.id 
         WHERE a.user_id = %s 
-        ORDER BY a.waktu_absen DESC 
+        ORDER BY e.tanggal_event DESC, e.waktu_event DESC
         LIMIT 10
     """, (session['user_id'],))
     riwayat_absen = cursor.fetchall()
